@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { http, ApiError } from '../services/api';
 import type { Product } from '../types';
@@ -116,6 +116,29 @@ function ProductFormModal({
   const [imagem, setImagem] = useState(product?.imagem ?? '');
   const [categoria, setCategoria] = useState(product?.categoria ?? CATEGORIAS_SUGERIDAS[0]);
   const [loading, setLoading] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast('Selecione um arquivo de imagem.', 'error');
+      return;
+    }
+    setUploadingImg(true);
+    try {
+      const fd = new FormData();
+      fd.append('imagem', file);
+      const { url } = await http.upload<{ url: string }>('/products/image', fd);
+      setImagem(url);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Erro ao enviar a imagem', 'error');
+    } finally {
+      setUploadingImg(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -179,8 +202,25 @@ function ProductFormModal({
           </select>
         </div>
         <div className="field">
-          <label className="label">URL da imagem</label>
-          <input className="input" type="url" value={imagem} onChange={(e) => setImagem(e.target.value)} placeholder="https://..." />
+          <label className="label">Imagem do produto</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              width: '88px', height: '88px', borderRadius: '10px', flexShrink: 0,
+              border: '1px solid var(--border-subtle)',
+              background: imagem ? `url(${imagem}) center/cover` : 'linear-gradient(135deg, var(--wine-700), var(--wine-900))',
+            }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <input ref={fileRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: 'none' }} />
+              <button type="button" className="btn btn-outline" disabled={uploadingImg} onClick={() => fileRef.current?.click()}>
+                {uploadingImg ? 'Enviando...' : imagem ? 'Trocar imagem' : 'Enviar imagem'}
+              </button>
+              {imagem && (
+                <button type="button" className="btn btn-danger" disabled={uploadingImg} onClick={() => setImagem('')} style={{ fontSize: '0.72rem', padding: '0.5rem 1rem' }}>
+                  Remover
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>

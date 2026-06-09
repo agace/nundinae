@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS produtos (
   nome VARCHAR(200) NOT NULL,
   descricao TEXT,
   preco DECIMAL(10,2) NOT NULL,
-  imagem VARCHAR(500),
+  imagem MEDIUMTEXT,
   estoque INT NOT NULL DEFAULT 0,
   categoria VARCHAR(100) NOT NULL,
   ativo TINYINT(1) NOT NULL DEFAULT 1,

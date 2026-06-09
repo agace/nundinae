@@ -54,6 +54,9 @@ export async function applyMigrations(conn: mysql.Connection): Promise<number> {
   await ensureColumn(conn, 'usuarios', 'endereco_cidade', 'VARCHAR(100)');
   await ensureColumn(conn, 'usuarios', 'endereco_estado', 'VARCHAR(2)');
 
+  // imagem do produto passa a aceitar upload (URL longa do Cloudinary ou base64 do fallback).
+  await conn.query('ALTER TABLE produtos MODIFY COLUMN imagem MEDIUMTEXT');
+
   // Snapshot do endereço de entrega no pedido.
   await ensureColumn(conn, 'pedidos', 'entrega_cep', 'VARCHAR(9)');
   await ensureColumn(conn, 'pedidos', 'entrega_logradouro', 'VARCHAR(150)');

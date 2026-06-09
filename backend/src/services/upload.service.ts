@@ -53,6 +53,34 @@ export async function uploadAvatar(
   });
 }
 
+/**
+ * Envia a imagem de um produto. Com Cloudinary configurado devolve a URL do
+ * CDN, senão um data-URI base64 (fallback), mesmo padrão do avatar.
+ */
+export async function uploadProductImage(
+  buffer: Buffer,
+  mimetype: string,
+): Promise<string> {
+  if (!isConfigured()) {
+    return `data:${mimetype};base64,${buffer.toString('base64')}`;
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'nundinae/products',
+        resource_type: 'image',
+        transformation: [{ width: 1000, height: 1000, crop: 'limit' }],
+      },
+      (error, result) => {
+        if (error || !result) return reject(error ?? new Error('Falha no upload da imagem'));
+        resolve(result.secure_url);
+      },
+    );
+    stream.end(buffer);
+  });
+}
+
 /** Remove o avatar do Cloudinary (no-op sem credenciais ou no fallback base64). */
 export async function removeAvatar(userId: number): Promise<void> {
   if (!isConfigured()) return;

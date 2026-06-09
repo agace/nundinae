@@ -1,19 +1,42 @@
 import type { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { HttpError } from '../middleware/error.js';
+import * as uploadService from '../services/upload.service.js';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const productSchema = z.object({
   nome: z.string().min(2).max(200),
   descricao: z.string().max(2000).optional(),
   preco: z.number().positive(),
-  imagem: z.string().url().optional().nullable(),
+  imagem: z.string().optional().nullable(),
   estoque: z.number().int().min(0),
   categoria: z.string().min(1).max(100),
-  // Aceito apenas na edição (ex.: admin reativar produto removido); ignorado no create.
   ativo: z.boolean().optional(),
 });
+
+export const productImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 3 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new HttpError(400, 'Envie um arquivo de imagem (JPG, PNG, etc.)'));
+  },
+});
+
+export async function uploadImage(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (req.user!.tipo === 'comprador') {
+      throw new HttpError(403, 'Apenas vendedores podem enviar imagens de produto');
+    }
+    if (!req.file) throw new HttpError(400, 'Nenhuma imagem enviada');
+    const url = await uploadService.uploadProductImage(req.file.buffer, req.file.mimetype);
+    res.json({ url });
+  } catch (err) {
+    next(err);
+  }
+}
 
 interface ProductRow extends RowDataPacket {
   id: number;

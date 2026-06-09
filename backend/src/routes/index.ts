@@ -31,6 +31,7 @@ router.delete('/users/me/avatar', authenticate, users.removeAvatar);
 router.get('/products', products.list);
 router.get('/products/categories', products.categories);
 router.get('/products/:id', products.getById);
+router.post('/products/image', authenticate, products.productImageUpload.single('imagem'), products.uploadImage);
 router.post('/products', authenticate, products.create);
 router.put('/products/:id', authenticate, products.update);
 router.delete('/products/:id', authenticate, products.remove);
