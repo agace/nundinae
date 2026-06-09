@@ -1,0 +1,24 @@
+services:
+  mysql:
+    image: mysql:8.3
+    container_name: nundinae-mysql
+    restart: unless-stopped
+    # Permite que usuários sem SUPER criem triggers/procedures (regras de negócio).
+    command: ["--log-bin-trust-function-creators=1"]
+    environment:
+      MYSQL_ROOT_PASSWORD: nundinae_root
+      MYSQL_DATABASE: nundinae
+      MYSQL_USER: nundinae
+      MYSQL_PASSWORD: nundinae_dev
+    ports:
+      - "3307:3306"
+    volumes:
+      - nundinae_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pnundinae_root"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  nundinae_mysql_data:
