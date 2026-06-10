@@ -47,9 +47,9 @@ function renderHtml(order: OrderEmail): string {
 
   return `
   <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;background:#fff;border:1px solid #eadfce;border-radius:12px;overflow:hidden">
-    <div style="background:#2a0811;color:#f3e7d3;padding:24px 28px">
-      <h1 style="margin:0;font-size:20px;letter-spacing:2px">NUNDINAE</h1>
-      <p style="margin:6px 0 0;color:#d4a43a;font-size:13px">Confirmação de pedido</p>
+    <div style="background:#2a0811;padding:24px 28px">
+      <h1 style="margin:0;font-size:22px;letter-spacing:3px;color:#f5ead3;font-weight:bold">NUNDINAE</h1>
+      <p style="margin:6px 0 0;color:#e0b54a;font-size:13px">Confirmação de pedido</p>
     </div>
     <div style="padding:28px">
       <p style="color:#3a2128">Salve, <strong>${order.nome}</strong>!</p>
