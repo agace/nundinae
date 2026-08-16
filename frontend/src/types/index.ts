@@ -186,6 +186,7 @@ export interface Coupon {
   validade: string | null;
   usos_max: number | null;
   usos: number;
+  vendedor_id: number | null;
   created_at: string;
 }
 

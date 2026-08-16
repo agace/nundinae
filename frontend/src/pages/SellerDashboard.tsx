@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { http, ApiError } from '../services/api';
-import type { Product } from '../types';
+import type { Product, Coupon } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { StarRating } from '../components/StarRating';
 import { IconPlus } from '../components/Icons';
+import { money } from '../utils/format';
 
 const CATEGORIAS_SUGERIDAS = ['Joias', 'Cerâmicas e Louças', 'Artes e Quadros', 'Especiarias', 'Vestuário'];
 
@@ -83,7 +84,7 @@ export function SellerDashboard() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontWeight: 600 }}>{p.nome}</p>
                 <p className="muted" style={{ fontSize: '0.8rem' }}>{p.categoria} · Estoque: {p.estoque}</p>
-                <p className="gold" style={{ fontWeight: 600 }}>R$ {p.preco.toFixed(2).replace('.', ',')}</p>
+                <p className="gold" style={{ fontWeight: 600 }}>{money(p.preco)}</p>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button className="btn btn-ghost" onClick={() => setEditing(p)} style={{ padding: '0.5rem 1rem', fontSize: '0.75rem' }}>Editar</button>
@@ -94,12 +95,149 @@ export function SellerDashboard() {
         </div>
       )}
 
+      <CouponsSection />
+
       {(creating || editing) && (
         <ProductFormModal
           product={editing}
           onClose={() => { setCreating(false); setEditing(null); }}
           onSaved={() => { setCreating(false); setEditing(null); load(); }}
         />
+      )}
+    </div>
+  );
+}
+
+function CouponsSection() {
+  const { toast } = useToast();
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ codigo: '', tipo: 'percentual' as 'percentual' | 'fixo', valor: '', usos_max: '', validade: '' });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      setCoupons(await http.get<Coupon[]>('/coupons'));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Erro ao carregar cupons', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function create(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await http.post('/coupons', {
+        codigo: form.codigo,
+        tipo: form.tipo,
+        valor: Number(form.valor),
+        usos_max: form.usos_max ? Number(form.usos_max) : null,
+        validade: form.validade || null,
+      });
+      toast('Cupom criado', 'success');
+      setForm({ codigo: '', tipo: 'percentual', valor: '', usos_max: '', validade: '' });
+      load();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Erro ao criar cupom', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggle(c: Coupon) {
+    try {
+      await http.put(`/coupons/${c.id}`, { ativo: !c.ativo });
+      load();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Erro', 'error');
+    }
+  }
+
+  async function remove(c: Coupon) {
+    if (!confirm(`Excluir o cupom "${c.codigo}"?`)) return;
+    try {
+      await http.delete(`/coupons/${c.id}`);
+      toast('Cupom excluído', 'success');
+      load();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Erro', 'error');
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '3.5rem' }}>
+      <div style={{ marginBottom: '1.25rem' }}>
+        <h2 style={{ fontSize: '1.6rem', letterSpacing: '0.06em' }}>MEUS CUPONS</h2>
+        <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.35rem' }}>
+          Crie cupons de desconto para a sua loja. O desconto é aplicado no carrinho do cliente no checkout.
+        </p>
+      </div>
+
+      <form onSubmit={create} className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+        <h3 style={{ fontSize: '1.05rem', marginBottom: '1rem' }}>Novo cupom</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label className="label">Código</label>
+            <input className="input" style={{ textTransform: 'uppercase' }} value={form.codigo} onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))} required minLength={2} maxLength={40} placeholder="ROMA10" />
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label className="label">Tipo</label>
+            <select className="input" value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as 'percentual' | 'fixo' }))}>
+              <option value="percentual">Percentual (%)</option>
+              <option value="fixo">Valor fixo (R$)</option>
+            </select>
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label className="label">Valor</label>
+            <input className="input" type="number" step="0.01" min="0.01" value={form.valor} onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))} required placeholder={form.tipo === 'percentual' ? '10' : '50'} />
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label className="label">Usos máx. (opcional)</label>
+            <input className="input" type="number" min="1" value={form.usos_max} onChange={(e) => setForm((f) => ({ ...f, usos_max: e.target.value }))} placeholder="∞" />
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label className="label">Validade (opcional)</label>
+            <input className="input" type="date" value={form.validade} onChange={(e) => setForm((f) => ({ ...f, validade: e.target.value }))} />
+          </div>
+          <div className="field" style={{ marginBottom: 0, display: 'flex', alignItems: 'flex-end' }}>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={saving}>{saving ? 'Criando...' : 'Criar cupom'}</button>
+          </div>
+        </div>
+      </form>
+
+      {loading ? (
+        <div style={{ display: 'grid', placeItems: 'center', padding: '3rem' }}><div className="spinner" /></div>
+      ) : coupons.length === 0 ? (
+        <div className="card" style={{ padding: '2.5rem', textAlign: 'center' }}>
+          <p className="muted">Você ainda não criou nenhum cupom.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: '0.75rem' }}>
+          {coupons.map((c) => (
+            <div key={c.id} className="card" style={{ padding: '1.1rem 1.25rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', opacity: c.ativo ? 1 : 0.55 }}>
+              <div style={{ flex: 1, minWidth: '160px' }}>
+                <p style={{ fontWeight: 600, fontFamily: 'var(--font-display)', letterSpacing: '0.06em' }}>{c.codigo}</p>
+                <p className="muted" style={{ fontSize: '0.8rem' }}>
+                  {c.tipo === 'percentual' ? `${c.valor}% de desconto` : `${money(c.valor)} de desconto`}
+                  {' · '}Usos: {c.usos}{c.usos_max ? ` / ${c.usos_max}` : ''}
+                  {c.validade ? ` · Vale até ${new Date(c.validade).toLocaleDateString('pt-BR')}` : ''}
+                </p>
+              </div>
+              <span className={c.ativo ? 'gold' : 'muted'} style={{ fontSize: '0.75rem', fontWeight: 600 }}>{c.ativo ? 'Ativo' : 'Inativo'}</span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-ghost" style={{ padding: '0.5rem 1rem', fontSize: '0.75rem' }} onClick={() => toggle(c)}>
+                  {c.ativo ? 'Desativar' : 'Ativar'}
+                </button>
+                <button className="btn btn-danger" style={{ padding: '0.5rem 1rem', fontSize: '0.75rem' }} onClick={() => remove(c)}>Excluir</button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

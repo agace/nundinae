@@ -1,12 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { http, ApiError } from '../services/api';
-import type { AdminUser, AdminStats, AdminProduct, UserType, Coupon } from '../types';
+import type { AdminUser, AdminStats, AdminProduct, UserType } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import { money } from '../utils/format';
 
 const TIPOS: UserType[] = ['comprador', 'vendedor', 'ambos', 'admin'];
-type Tab = 'usuarios' | 'produtos' | 'cupons';
+type Tab = 'usuarios' | 'produtos';
 
 export function Admin() {
   const { user } = useAuth();
@@ -95,7 +96,7 @@ export function Admin() {
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2.25rem', letterSpacing: '0.08em' }}>PAINEL DO ADMINISTRADOR</h1>
         <p className="muted" style={{ marginTop: '0.4rem' }}>
-          Gerenciamento de usuários, produtos e cupons da feira (RF09).
+          Gerenciamento de usuários e produtos da feira.
         </p>
       </div>
 
@@ -111,7 +112,7 @@ export function Admin() {
           <StatCard label="Produtos ativos" value={String(stats.produtos)} />
           <StatCard label="Produtos inativos" value={String(stats.produtos_inativos)} />
           <StatCard label="Pedidos pagos" value={String(stats.pedidos_pagos)} />
-          <StatCard label="Faturamento" value={`R$ ${stats.faturamento.toFixed(2).replace('.', ',')}`} />
+          <StatCard label="Faturamento" value={`${money(stats.faturamento)}`} />
         </div>
       )}
 
@@ -119,10 +120,7 @@ export function Admin() {
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <TabButton active={tab === 'usuarios'} onClick={() => setTab('usuarios')}>Usuários</TabButton>
         <TabButton active={tab === 'produtos'} onClick={() => setTab('produtos')}>Produtos</TabButton>
-        <TabButton active={tab === 'cupons'} onClick={() => setTab('cupons')}>Cupons</TabButton>
       </div>
-
-      {tab === 'cupons' && <CouponsTab />}
 
       {tab === 'usuarios' && (
         loading ? <Spinner /> : (
@@ -207,7 +205,7 @@ export function Admin() {
                       <div className="muted" style={{ fontSize: '0.78rem' }}>{p.categoria}</div>
                     </td>
                     <td>{p.vendedor_nome}</td>
-                    <td style={{ textAlign: 'right' }}>R$ {p.preco.toFixed(2).replace('.', ',')}</td>
+                    <td style={{ textAlign: 'right' }}>{money(p.preco)}</td>
                     <td style={{ textAlign: 'center' }}>{p.estoque}</td>
                     <td><StatusBadge ok={p.ativo} okLabel="Ativo" offLabel="Inativo" /></td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -255,139 +253,6 @@ export function Admin() {
         .admin-table tbody tr:last-child td { border-bottom: none; }
         .admin-table tbody tr:hover { background: rgba(212,164,58,0.04); }
       `}</style>
-    </div>
-  );
-}
-
-function CouponsTab() {
-  const { toast } = useToast();
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ codigo: '', tipo: 'percentual' as 'percentual' | 'fixo', valor: '', usos_max: '', validade: '' });
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    try {
-      setCoupons(await http.get<Coupon[]>('/admin/coupons'));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function create(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await http.post('/admin/coupons', {
-        codigo: form.codigo,
-        tipo: form.tipo,
-        valor: Number(form.valor),
-        usos_max: form.usos_max ? Number(form.usos_max) : null,
-        validade: form.validade || null,
-      });
-      toast('Cupom criado', 'success');
-      setForm({ codigo: '', tipo: 'percentual', valor: '', usos_max: '', validade: '' });
-      load();
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Erro ao criar cupom', 'error');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function toggle(c: Coupon) {
-    try {
-      await http.put(`/admin/coupons/${c.id}`, { ativo: !c.ativo });
-      load();
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Erro', 'error');
-    }
-  }
-
-  async function remove(c: Coupon) {
-    if (!confirm(`Excluir o cupom "${c.codigo}"?`)) return;
-    try {
-      await http.delete(`/admin/coupons/${c.id}`);
-      toast('Cupom excluído', 'success');
-      load();
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Erro', 'error');
-    }
-  }
-
-  return (
-    <div style={{ display: 'grid', gap: '1.5rem' }}>
-      <form onSubmit={create} className="card" style={{ padding: '1.5rem' }}>
-        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Novo cupom</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label className="label">Código</label>
-            <input className="input" style={{ textTransform: 'uppercase' }} value={form.codigo} onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))} required minLength={2} maxLength={40} placeholder="ROMA10" />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label className="label">Tipo</label>
-            <select className="input" value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as 'percentual' | 'fixo' }))}>
-              <option value="percentual">Percentual (%)</option>
-              <option value="fixo">Valor fixo (R$)</option>
-            </select>
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label className="label">Valor</label>
-            <input className="input" type="number" step="0.01" min="0.01" value={form.valor} onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))} required placeholder={form.tipo === 'percentual' ? '10' : '50'} />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label className="label">Usos máx. (opcional)</label>
-            <input className="input" type="number" min="1" value={form.usos_max} onChange={(e) => setForm((f) => ({ ...f, usos_max: e.target.value }))} placeholder="∞" />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label className="label">Validade (opcional)</label>
-            <input className="input" type="date" value={form.validade} onChange={(e) => setForm((f) => ({ ...f, validade: e.target.value }))} />
-          </div>
-          <div className="field" style={{ marginBottom: 0, display: 'flex', alignItems: 'flex-end' }}>
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={saving}>{saving ? 'Criando...' : 'Criar cupom'}</button>
-          </div>
-        </div>
-      </form>
-
-      {loading ? <Spinner /> : (
-        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
-          <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '640px' }}>
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Desconto</th>
-                <th style={{ textAlign: 'center' }}>Usos</th>
-                <th>Validade</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {coupons.map((c) => (
-                <tr key={c.id} style={{ opacity: c.ativo ? 1 : 0.55 }}>
-                  <td style={{ fontWeight: 600, fontFamily: 'var(--font-display)', letterSpacing: '0.06em' }}>{c.codigo}</td>
-                  <td>{c.tipo === 'percentual' ? `${c.valor}%` : `R$ ${c.valor.toFixed(2).replace('.', ',')}`}</td>
-                  <td style={{ textAlign: 'center' }}>{c.usos}{c.usos_max ? ` / ${c.usos_max}` : ''}</td>
-                  <td>{c.validade ? new Date(c.validade).toLocaleDateString('pt-BR') : '—'}</td>
-                  <td><StatusBadge ok={c.ativo} okLabel="Ativo" offLabel="Inativo" /></td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-ghost" style={{ padding: '0.4rem 0.8rem', fontSize: '0.72rem', marginRight: '0.4rem' }} onClick={() => toggle(c)}>
-                      {c.ativo ? 'Desativar' : 'Ativar'}
-                    </button>
-                    <button className="btn btn-danger" style={{ padding: '0.4rem 0.8rem', fontSize: '0.72rem' }} onClick={() => remove(c)}>Excluir</button>
-                  </td>
-                </tr>
-              ))}
-              {coupons.length === 0 && (
-                <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: '2rem' }}>Nenhum cupom cadastrado.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
@@ -443,6 +308,29 @@ function ProductEditModal({ product, onClose, onSaved }: { product: AdminProduct
     imagem: product.imagem ?? '',
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast('Selecione um arquivo de imagem.', 'error');
+      return;
+    }
+    setUploadingImg(true);
+    try {
+      const fd = new FormData();
+      fd.append('imagem', file);
+      const { url } = await http.upload<{ url: string }>('/products/image', fd);
+      setForm((f) => ({ ...f, imagem: url }));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Erro ao enviar a imagem', 'error');
+    } finally {
+      setUploadingImg(false);
+    }
+  }
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -498,8 +386,25 @@ function ProductEditModal({ product, onClose, onSaved }: { product: AdminProduct
           <input className="input" value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))} required maxLength={100} />
         </div>
         <div className="field">
-          <label className="label">Imagem (URL)</label>
-          <input className="input" value={form.imagem} onChange={(e) => setForm((f) => ({ ...f, imagem: e.target.value }))} placeholder="https://..." />
+          <label className="label">Imagem do produto</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              width: '88px', height: '88px', borderRadius: '10px', flexShrink: 0,
+              border: '1px solid var(--border-subtle)',
+              background: form.imagem ? `url(${form.imagem}) center/cover` : 'linear-gradient(135deg, var(--wine-700), var(--wine-900))',
+            }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <input ref={fileRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: 'none' }} />
+              <button type="button" className="btn btn-outline" disabled={uploadingImg} onClick={() => fileRef.current?.click()}>
+                {uploadingImg ? 'Enviando...' : form.imagem ? 'Trocar imagem' : 'Enviar imagem'}
+              </button>
+              {form.imagem && (
+                <button type="button" className="btn btn-danger" disabled={uploadingImg} onClick={() => setForm((f) => ({ ...f, imagem: '' }))} style={{ fontSize: '0.72rem', padding: '0.5rem 1rem' }}>
+                  Remover
+                </button>
+              )}
+            </div>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
