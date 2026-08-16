@@ -12,6 +12,7 @@ import * as questions from '../controllers/questions.controller.js';
 import * as coupons from '../controllers/coupons.controller.js';
 import { authenticate, requireAdmin, requireSeller } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
+import { ping } from '../db/pool.js';
 
 export const router = Router();
 
@@ -22,7 +23,24 @@ const authLimiter = rateLimit({
   message: 'Muitas tentativas de autenticação. Aguarde alguns minutos.',
 });
 
+// Liveness: só diz que o processo responde. É o health check da hospedagem,
+// que reinicia o serviço quando falha, então não deve depender do banco.
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'nundinae-api' }));
+
+// Readiness: encosta no banco de propósito. Serve para o monitor externo, que
+// precisa manter acordados tanto a API quanto o banco, já que os dois hibernam
+// por inatividade nos planos gratuitos.
+router.get('/health/db', async (_req, res) => {
+  try {
+    await ping();
+    res.json({ ok: true, db: 'up' });
+  } catch (err) {
+    // A mensagem do mysql2 traz host e porta, que não devem sair num endpoint
+    // público. Fica só no log do servidor.
+    console.error('[health] Banco inacessível:', (err as Error).message);
+    res.status(503).json({ ok: false, db: 'down' });
+  }
+});
 
 // Auth
 router.post('/auth/register', authLimiter, auth.register);

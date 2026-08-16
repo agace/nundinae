@@ -8,6 +8,7 @@ services:
     region: virginia
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
+    # Liveness. O monitor externo deve usar /api/health/db, que acorda o banco.
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:

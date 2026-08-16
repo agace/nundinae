@@ -290,10 +290,17 @@ em `/catalogo` cairia em 404 no host estático.
 
 ### Instância gratuita e hibernação
 
-O plano gratuito do Render hiberna o serviço após 15 minutos sem tráfego, e a
-requisição seguinte espera o container subir. Um monitor externo (UptimeRobot,
-cron-job.org) chamando `/api/health` a cada 5 minutos mantém a instância de pé
-dentro das 750 horas mensais que o plano oferece.
+O plano gratuito do Render hiberna o serviço após 15 minutos sem tráfego, e o
+plano gratuito do Aiven desliga o banco por inatividade. Um monitor externo
+(UptimeRobot, cron-job.org) chamando **`/api/health/db`** a cada 5 minutos
+mantém os dois acordados, dentro das 750 horas mensais do Render.
+
+A API expõe dois endpoints de saúde com papéis distintos:
+
+| Rota | Uso |
+|------|-----|
+| `/api/health` | liveness, não toca no banco. É o health check da hospedagem, que reinicia o serviço quando falha |
+| `/api/health/db` | readiness, consulta o banco. É o alvo do monitor externo |
 
 ### Seed em produção
 
