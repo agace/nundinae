@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: nundinae-api
+    runtime: docker
+    plan: free
+    # Sem região na América do Sul no plano gratuito. Virginia é a de menor
+    # latência para o Brasil, e o banco deve ficar na mesma região.
+    region: virginia
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # O Render gera um valor aleatório na primeira criação e nunca mais mexe.
+      # Trocar este valor invalida todos os tokens já emitidos.
+      - key: JWT_SECRET
+        generateValue: true
+      # Preenchidas no painel do Render (marcadas como secretas).
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      # Conteúdo do ca.pem do provedor do banco.
+      - key: DB_SSL_CA
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      # Integrações opcionais: sem elas a aplicação roda em modo simulado.
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

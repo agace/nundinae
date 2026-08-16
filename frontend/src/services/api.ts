@@ -1,4 +1,7 @@
-const API_URL = '/api';
+// Em dev o proxy do Vite encaminha /api para o backend. Num deploy com
+// frontend e API em domínios separados, VITE_API_URL aponta para a API.
+const configurada = import.meta.env.VITE_API_URL?.trim();
+const API_URL = configurada ? configurada.replace(/\/+$/, '') : '/api';
 
 function getToken(): string | null {
   return localStorage.getItem('nundinae.token');
@@ -37,8 +40,7 @@ export async function api<T>(
   return body as T;
 }
 
-/** Upload de arquivo (multipart). Não seta Content-Type — o browser cuida do
- *  boundary do FormData. Reaproveita o token e o tratamento de erro do api(). */
+// Sem Content-Type manual: o browser define o boundary do FormData.
 export async function upload<T>(path: string, formData: FormData): Promise<T> {
   const headers = new Headers();
   const token = getToken();
