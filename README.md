@@ -159,7 +159,10 @@ Valem tanto no ambiente local quanto na [demonstração ao vivo](https://nundina
 | `marcus@nundinae.com` | `roma123` | Vendedor |
 | `livia@nundinae.com` | `roma123` | Vendedor |
 | `julia@nundinae.com` | `roma123` | Comprador |
-| `admin@nundinae.com` | `admin123` | Administrador |
+
+O painel administrativo permite excluir usuários e ver os dados de quem se cadastrou,
+então na demonstração pública a senha do administrador não é a do seed. Localmente,
+`npm run db:seed` cria o `admin@nundinae.com` com a senha `admin123`.
 
 ## Testes
 
