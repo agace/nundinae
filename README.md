@@ -52,8 +52,9 @@ Elas não dependem apenas da camada de aplicação.
 
 ### Plataforma
 - Autenticação **JWT** com senhas criptografadas (**Bcrypt**)
-- **E-mail de confirmação** de pedido (Nodemailer/SMTP)
+- **E-mail de confirmação** de pedido (API HTTP do Resend)
 - **Upload de imagens** via Cloudinary (com fallback local, roda sem credenciais)
+- Rate limiting nas rotas de autenticação e headers de segurança (**Helmet**)
 - Interface **responsiva** com tema vinho/dourado romano
 
 ## Arquitetura
@@ -79,6 +80,7 @@ nundinae/
 │       ├── contexts/         # Auth, Carrinho, Favoritos, Toasts
 │       ├── services/         # Cliente HTTP com JWT
 │       └── styles/           # Tema visual
+├── .github/workflows/ci.yml  # Lint, typecheck, build e testes
 ├── docker-compose.yml        # MySQL 8 containerizado
 └── package.json              # Monorepo (npm workspaces)
 ```
@@ -103,8 +105,9 @@ nundinae/
 | **Backend** | Node.js, Express, TypeScript, Zod |
 | **Banco de dados** | MySQL 8 (Docker), triggers e stored procedures |
 | **Autenticação** | JWT + Bcrypt |
-| **Integrações** | Mercado Pago (PIX), Cloudinary (imagens), Nodemailer (e-mail) |
+| **Integrações** | Mercado Pago (PIX), Cloudinary (imagens), Resend (e-mail) |
 | **Testes** | Vitest, Supertest, Testing Library |
+| **Qualidade** | ESLint 9 (flat config), GitHub Actions |
 
 ## Como rodar
 
@@ -137,12 +140,12 @@ ativadas por configuração em `backend/.env` (ver `backend/.env.example`):
 
 ```env
 MP_ACCESS_TOKEN=         # Mercado Pago, habilita PIX real (QR Code + copia e cola)
-SMTP_HOST=               # Nodemailer, habilita e-mail de confirmação do pedido
+RESEND_API_KEY=          # Resend, habilita o e-mail de confirmação do pedido
 CLOUDINARY_CLOUD_NAME=   # Cloudinary, habilita CDN de imagens (senão usa fallback local)
 ```
 
 - **Sem Mercado Pago:** o PIX cai no modo simulado.
-- **Sem SMTP:** o e-mail é apenas registrado no log.
+- **Sem Resend:** o e-mail é apenas registrado no log.
 - **Sem Cloudinary:** as imagens usam fallback base64 no banco.
 
 ## Usuários de demonstração
@@ -165,6 +168,9 @@ npm run db:up          # o MySQL precisa estar de pé
 npm test               # backend + frontend
 npm run test:backend
 npm run test:frontend
+
+npm run lint           # ESLint no backend e no frontend
+npm run typecheck      # TypeScript sem emitir
 ```
 
 ## API - principais endpoints
@@ -217,24 +223,83 @@ POST   /api/coupons/validate
 GET    /api/notifications
 PUT    /api/notifications/:id/read
 
+# Cupons do vendedor
+GET    /api/coupons
+POST   /api/coupons
+PUT    /api/coupons/:id
+DELETE /api/coupons/:id
+
 # Administração
 GET    /api/admin/stats
 GET    /api/admin/users
+GET    /api/admin/products
 PATCH  /api/admin/users/:id/status
-GET    /api/admin/coupons
-POST   /api/admin/coupons
+PATCH  /api/admin/users/:id/tipo
+DELETE /api/admin/users/:id
 ```
 
 </details>
 
-## Equipe
+## Deploy
 
-| Integrante |
-|------------|
-| Bryan Charles |
-| Guilherme Eidam |
-| Guilherme Sartori |
-| Luis Gustavo |
+Em produção a API e o frontend ficam em serviços separados, e o banco num MySQL
+gerenciado. A stack usada é Render (API em Docker), Vercel (frontend) e Aiven
+(MySQL 8), todas em plano gratuito. Como a API roda por container, o mesmo
+`backend/Dockerfile` sobe em qualquer outro provedor sem alteração de código.
+
+Os arquivos `render.yaml` e `vercel.json` já descrevem os dois serviços.
+
+### Banco
+
+Crie um MySQL 8 e mantenha o banco **na mesma região da API**, senão cada query
+atravessa o oceano. Provedores que assinam o certificado com CA própria exigem
+`DB_SSL=true` e o conteúdo do `ca.pem` em `DB_SSL_CA` (aceita PEM ou base64).
+
+### API
+
+Variáveis obrigatórias em produção, sem as quais o processo se recusa a subir:
+
+| Variável | Observação |
+|----------|------------|
+| `NODE_ENV` | `production` |
+| `JWT_SECRET` | mínimo 32 caracteres, aleatório |
+| `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | credenciais do banco |
+| `CORS_ORIGIN` | domínio do frontend (aceita lista separada por vírgula) |
+| `FRONTEND_URL` | domínio do frontend |
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+O schema e as regras de negócio são aplicados uma vez, com o build já compilado:
+
+```bash
+npm -w backend run migrate:prod
+```
+
+### Frontend
+
+Build estático com `VITE_API_URL` apontando para a API, incluindo o `/api`:
+
+```bash
+VITE_API_URL=https://sua-api.exemplo.com/api npm -w frontend run build
+```
+
+O `vercel.json` reescreve todas as rotas para `index.html`, sem o que um refresh
+em `/catalogo` cairia em 404 no host estático.
+
+### Instância gratuita e hibernação
+
+O plano gratuito do Render hiberna o serviço após 15 minutos sem tráfego, e a
+requisição seguinte espera o container subir. Um monitor externo (UptimeRobot,
+cron-job.org) chamando `/api/health` a cada 5 minutos mantém a instância de pé
+dentro das 750 horas mensais que o plano oferece.
+
+### Seed em produção
+
+O `npm run seed` é destrutivo (apaga todas as tabelas) e se recusa a rodar com
+`NODE_ENV=production`. Para popular a demonstração de propósito, use
+`SEED_ALLOW_PRODUCTION=true npm -w backend run seed:prod`.
 
 ---
 
