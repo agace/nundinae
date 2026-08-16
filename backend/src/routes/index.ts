@@ -10,15 +10,23 @@ import * as favorites from '../controllers/favorites.controller.js';
 import * as notifications from '../controllers/notifications.controller.js';
 import * as questions from '../controllers/questions.controller.js';
 import * as coupons from '../controllers/coupons.controller.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requireAdmin, requireSeller } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rate-limit.js';
 
 export const router = Router();
+
+// Protege as rotas que criam sessão contra força bruta e cadastro em massa.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Muitas tentativas de autenticação. Aguarde alguns minutos.',
+});
 
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'nundinae-api' }));
 
 // Auth
-router.post('/auth/register', auth.register);
-router.post('/auth/login', auth.login);
+router.post('/auth/register', authLimiter, auth.register);
+router.post('/auth/login', authLimiter, auth.login);
 router.get('/auth/me', authenticate, auth.me);
 
 // Perfil do usuário (próprios dados)
@@ -56,6 +64,12 @@ router.put('/notifications/:id/read', authenticate, notifications.markRead);
 // Cupons de desconto
 router.post('/coupons/validate', authenticate, coupons.validate);
 
+// Cupons gerenciados pelo vendedor (cria e administra os próprios)
+router.get('/coupons', authenticate, requireSeller, coupons.list);
+router.post('/coupons', authenticate, requireSeller, coupons.create);
+router.put('/coupons/:id', authenticate, requireSeller, coupons.update);
+router.delete('/coupons/:id', authenticate, requireSeller, coupons.remove);
+
 // Carrinho
 router.get('/cart', authenticate, cart.get);
 router.post('/cart/items', authenticate, cart.add);
@@ -83,9 +97,3 @@ router.get('/admin/products', authenticate, requireAdmin, admin.listProducts);
 router.patch('/admin/users/:id/status', authenticate, requireAdmin, admin.setStatus);
 router.patch('/admin/users/:id/tipo', authenticate, requireAdmin, admin.setTipo);
 router.delete('/admin/users/:id', authenticate, requireAdmin, admin.removeUser);
-
-// Admin — cupons de desconto (RF09)
-router.get('/admin/coupons', authenticate, requireAdmin, coupons.list);
-router.post('/admin/coupons', authenticate, requireAdmin, coupons.create);
-router.put('/admin/coupons/:id', authenticate, requireAdmin, coupons.update);
-router.delete('/admin/coupons/:id', authenticate, requireAdmin, coupons.remove);

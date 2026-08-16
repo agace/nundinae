@@ -122,8 +122,8 @@ const PRODUCTS: ProductSeed[] = [
   },
 ];
 
-/** Popula o banco com usuários, produtos e algumas avaliações de exemplo.
- *  Reutilizável tanto pela CLI (npm run seed) quanto pelos testes. */
+// Popula o banco com dados de demonstração. Usado pela CLI (npm run seed) e
+// pelos testes de integração.
 export async function seedDatabase(conn: mysql.Connection, opts: { log?: boolean } = {}): Promise<void> {
   const log = opts.log ? console.log : () => {};
 
@@ -149,7 +149,6 @@ export async function seedDatabase(conn: mysql.Connection, opts: { log?: boolean
     await conn.query('INSERT INTO carrinhos (usuario_id) VALUES (?)', [result.insertId]);
   }
 
-  // Endereço de exemplo para a compradora (pré-preenche o checkout na demo).
   await conn.query(
     `UPDATE usuarios SET telefone = ?, endereco_cep = ?, endereco_logradouro = ?,
             endereco_numero = ?, endereco_bairro = ?, endereco_cidade = ?, endereco_estado = ?
@@ -174,8 +173,7 @@ export async function seedDatabase(conn: mysql.Connection, opts: { log?: boolean
     emailToId['cassius@nundinae.com'],
   ];
 
-  // Pedido pago de exemplo para cada vendedor; a reputação (RF07) e o estoque
-  // (RN004) são ajustados automaticamente pelos triggers do banco.
+  // A reputação (RF07) e o estoque (RN004) saem dos triggers do banco.
   const pedidoIds: number[] = [];
   for (const vendedorId of vendedores) {
     const [prodRows] = await conn.query<RowDataPacket[]>(
@@ -208,15 +206,18 @@ export async function seedDatabase(conn: mysql.Connection, opts: { log?: boolean
 
   log('[seed] Cupons, favoritos, perguntas e rastreamento de exemplo...');
 
-  // Cupons de desconto (RF: cupons). Aplicados no checkout.
   await conn.query(
-    `INSERT INTO cupons (codigo, tipo, valor, ativo, usos_max) VALUES
-       ('ROMA10', 'percentual', 10, 1, 100),
-       ('SPQR50', 'fixo', 50, 1, 50),
-       ('FORUM5', 'percentual', 5, 1, NULL)`,
+    `INSERT INTO cupons (codigo, tipo, valor, ativo, usos_max, vendedor_id) VALUES
+       ('ROMA10', 'percentual', 10, 1, 100, ?),
+       ('FORUM5', 'percentual', 5, 1, NULL, ?),
+       ('SPQR50', 'fixo', 50, 1, 50, ?)`,
+    [
+      emailToId['marcus@nundinae.com'],
+      emailToId['marcus@nundinae.com'],
+      emailToId['livia@nundinae.com'],
+    ],
   );
 
-  // Lista de desejos da compradora.
   const [favProds] = await conn.query<RowDataPacket[]>(
     'SELECT id FROM produtos WHERE vendedor_id <> ? ORDER BY id LIMIT 3',
     [comprador],
@@ -225,7 +226,6 @@ export async function seedDatabase(conn: mysql.Connection, opts: { log?: boolean
     await conn.query('INSERT INTO favoritos (usuario_id, produto_id) VALUES (?, ?)', [comprador, p.id]);
   }
 
-  // Perguntas no anúncio — uma respondida e uma em aberto.
   const [perguntaProds] = await conn.query<RowDataPacket[]>(
     'SELECT id, vendedor_id FROM produtos ORDER BY id LIMIT 2',
   );
@@ -244,8 +244,7 @@ export async function seedDatabase(conn: mysql.Connection, opts: { log?: boolean
     );
   }
 
-  // Rastreamento: avança um pedido pago para "enviado" (os eventos da timeline
-  // e a notificação ao comprador são gerados pelos triggers do banco).
+  // Avança um pedido para "enviado" para a timeline aparecer populada na demo.
   if (pedidoIds[0]) {
     await conn.query(`UPDATE pedidos SET status = 'preparando' WHERE id = ?`, [pedidoIds[0]]);
     await conn.query(`UPDATE pedidos SET status = 'enviado' WHERE id = ?`, [pedidoIds[0]]);
@@ -253,6 +252,16 @@ export async function seedDatabase(conn: mysql.Connection, opts: { log?: boolean
 }
 
 async function run() {
+  // O seed apaga TODAS as tabelas antes de recriar os dados de exemplo. Rodar
+  // isso contra o banco de produção seria irreversível.
+  if (env.isProduction && process.env.SEED_ALLOW_PRODUCTION !== 'true') {
+    console.error(
+      '[seed] Bloqueado: este comando apaga todos os dados e NODE_ENV=production.\n' +
+      '       Se for mesmo a intenção, rode com SEED_ALLOW_PRODUCTION=true.',
+    );
+    process.exit(1);
+  }
+
   const conn = await mysql.createConnection({
     host: env.db.host,
     port: env.db.port,
@@ -271,7 +280,7 @@ async function run() {
   }
 }
 
-// Executa apenas quando rodado diretamente (npm run seed), não ao importar.
+// Só executa quando rodado direto pela CLI, não ao ser importado pelos testes.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   run().catch((err) => {
     console.error('[seed] Erro:', err);

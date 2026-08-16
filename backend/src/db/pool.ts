@@ -12,6 +12,12 @@ export const pool = mysql.createPool({
   queueLimit: 0,
   decimalNumbers: true,
   dateStrings: false,
+  // O banco grava os DATETIME em UTC (CURRENT_TIMESTAMP). Sem isto o mysql2 os
+  // leria como horário local e empurraria a data para frente. 'Z' = ler como UTC.
+  timezone: 'Z',
+  ...(env.db.ssl
+    ? { ssl: { rejectUnauthorized: true, ...(env.db.sslCa ? { ca: env.db.sslCa } : {}) } }
+    : {}),
 });
 
 export async function ping(): Promise<void> {
