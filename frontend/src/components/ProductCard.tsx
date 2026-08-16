@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { Product } from '../types';
 import { StarRating } from './StarRating';
 import { FavoriteButton } from './FavoriteButton';
+import { money } from '../utils/format';
 
 export function ProductCard({ product }: { product: Product }) {
   return (
@@ -72,7 +73,7 @@ export function ProductCard({ product }: { product: Product }) {
           fontWeight: 600,
           color: 'var(--gold-400)',
         }}>
-          R$ {product.preco.toFixed(2).replace('.', ',')}
+          {money(product.preco)}
         </p>
       </div>
     </Link>

@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { IconCreditCard } from './Icons';
-
-const money = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`;
+import { money } from '../utils/format';
 
 // --- Utilidades de cartão --------------------------------------------------
 
@@ -62,7 +60,6 @@ function bandeira(numero: string): string {
   return '';
 }
 
-/** Retorna o primeiro erro de validação do cartão, ou null se estiver ok. */
 export function validateCard(card: CardData): string | null {
   if (!luhnValid(card.numero)) return 'Número do cartão inválido.';
   if (card.nome.trim().length < 3) return 'Informe o nome impresso no cartão.';
@@ -144,14 +141,11 @@ export function CardForm({ card, onChange }: { card: CardData; onChange: (c: Car
           />
         </div>
       </div>
-      <p className="muted" style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-        <IconCreditCard size={13} /> Pagamento de demonstração. Não insira os dados de um cartão real.
-      </p>
     </div>
   );
 }
 
-// --- QR Code "falso" (decorativo, determinístico) --------------------------
+// --- QR Code decorativo, determinístico pelo conteúdo ----------------------
 
 function hashSeed(s: string): number {
   let h = 2166136261;
@@ -189,9 +183,8 @@ export function FakeQRCode({ data, size = 168 }: { data: string; size?: number }
   const cellFilled = (r: number, c: number) => {
     if (isFinder(r, c)) {
       const br = r < 7 ? 0 : n - 7;
-      const bc = c < 7 ? (r < 7 ? (c < 7 ? 0 : n - 7) : 0) : n - 7;
-      const realBc = r >= n - 7 ? 0 : (c >= n - 7 ? n - 7 : 0);
-      return finderFilled(r, c, br, realBc);
+      const bc = r >= n - 7 ? 0 : (c >= n - 7 ? n - 7 : 0);
+      return finderFilled(r, c, br, bc);
     }
     return rnd() > 0.5;
   };
@@ -248,7 +241,6 @@ export function formatCpf(s: string): string {
     .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
 }
 
-/** Validação completa de CPF (dígitos verificadores). */
 export function cpfValid(s: string): boolean {
   const d = onlyDigits(s);
   if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
@@ -261,7 +253,6 @@ export function cpfValid(s: string): boolean {
   return calc(9) === Number(d[9]) && calc(10) === Number(d[10]);
 }
 
-/** Exibe a cobrança PIX REAL gerada pelo Mercado Pago (QR + copia e cola). */
 export function RealPixCharge({ qrCodeBase64, qrCode, total, verificando }: {
   qrCodeBase64: string; qrCode: string; total: number; verificando: boolean;
 }) {
@@ -351,7 +342,7 @@ export function BoletoPanel({ total, linhaDigitavel, vencimento }: { total: numb
 
 // --- Geradores de código (determinísticos por pedido) ----------------------
 
-/** Código Pix "copia e cola" no formato EMV (decorativo, p/ a demo). */
+// Formato EMV, decorativo: o Pix real vem do Mercado Pago.
 export function gerarPixCode(total: number): string {
   const valor = total.toFixed(2);
   const txid = Math.random().toString(36).slice(2, 12).toUpperCase();
@@ -362,7 +353,6 @@ export function gerarPixCode(total: number): string {
   );
 }
 
-/** Linha digitável de boleto (47 dígitos) formatada (decorativa). */
 export function gerarBoletoLinha(): string {
   const bloco = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('');
   return `${bloco(5)}.${bloco(5)} ${bloco(5)}.${bloco(6)} ${bloco(5)}.${bloco(6)} ${bloco(1)} ${bloco(14)}`;

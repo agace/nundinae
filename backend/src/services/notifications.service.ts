@@ -7,12 +7,8 @@ export interface NotificationInput {
   link?: string | null;
 }
 
-/**
- * Cria uma notificação in-app para um usuário. Algumas notificações nascem de
- * triggers no banco (avaliação recebida, mudança de status do pedido); esta
- * função cobre os eventos disparados pela aplicação (venda, pergunta, resposta).
- * Nunca derruba o fluxo principal — falhas são apenas registradas.
- */
+// Cobre os eventos disparados pela aplicação (venda, pergunta, resposta). Os
+// demais nascem de triggers no banco. Falhar aqui nunca derruba o fluxo.
 export async function notify(usuarioId: number, n: NotificationInput): Promise<void> {
   try {
     await pool.query(

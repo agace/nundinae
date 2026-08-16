@@ -6,6 +6,7 @@ import { StarRating } from '../components/StarRating';
 import { IconCheck, IconTruck } from '../components/Icons';
 import { OrderTracking } from '../components/OrderTracking';
 import { useToast } from '../contexts/ToastContext';
+import { dataHora, money } from '../utils/format';
 
 const STATUS_LABEL: Record<string, string> = {
   pendente: 'Pendente', pago: 'Pago', preparando: 'Preparando',
@@ -88,7 +89,7 @@ export function Orders() {
                       Pedido #{o.id}
                     </p>
                     <p style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                      {new Date(o.created_at).toLocaleString('pt-BR')}
+                      {dataHora(o.created_at)}
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -108,7 +109,7 @@ export function Orders() {
                         <p style={{ fontSize: '0.9rem' }}>{it.quantidade}× {it.produto_nome}</p>
                         <p className="muted" style={{ fontSize: '0.75rem' }}>por {it.vendedor_nome}</p>
                       </div>
-                      <p className="gold" style={{ fontWeight: 600 }}>R$ {(it.preco_unitario * it.quantidade).toFixed(2).replace('.', ',')}</p>
+                      <p className="gold" style={{ fontWeight: 600 }}>{money((it.preco_unitario * it.quantidade))}</p>
                     </div>
                   ))}
                 </div>
@@ -117,11 +118,11 @@ export function Orders() {
                   <div>
                     {o.desconto > 0 && (
                       <p className="muted" style={{ fontSize: '0.78rem' }}>
-                        Cupom {o.cupom_codigo} · desconto de R$ {o.desconto.toFixed(2).replace('.', ',')}
+                        Cupom {o.cupom_codigo} · desconto de {money(o.desconto)}
                       </p>
                     )}
                     <strong className="gold" style={{ fontSize: '1.2rem' }}>
-                      Total R$ {o.total.toFixed(2).replace('.', ',')}
+                      Total {money(o.total)}
                     </strong>
                   </div>
 

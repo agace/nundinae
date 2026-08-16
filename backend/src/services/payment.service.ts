@@ -1,12 +1,8 @@
 import { env } from '../config/env.js';
 
-/**
- * Integração com o Mercado Pago.
- * Fluxo ativo: PIX real via Checkout Transparente (createPixPayment + confirmação
- * por external_reference). Mantém também o Checkout Pro (createPreference) como
- * código legado/opcional. Sem MP_ACCESS_TOKEN, `isConfigured()` é false e o PIX
- * cai no modo simulado — assim a aplicação roda sem credenciais.
- */
+// PIX real via Checkout Transparente do Mercado Pago. Sem MP_ACCESS_TOKEN,
+// isConfigured() é false e o checkout cai no modo simulado, então a aplicação
+// roda por completo sem credenciais.
 
 const MP_API = 'https://api.mercadopago.com';
 
@@ -18,65 +14,14 @@ function authHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${env.mercadoPago.accessToken}` };
 }
 
-export interface PreferenceItem {
-  title: string;
-  quantity: number;
-  unit_price: number;
-}
-
-export interface Preference {
-  id: string;
-  init_point: string;
-  sandbox_init_point: string;
-}
-
-/** Cria uma preferência de pagamento (itens + retorno) e devolve os links. */
-export async function createPreference(params: {
-  pedidoId: number;
-  items: PreferenceItem[];
-  payerEmail?: string;
-}): Promise<Preference> {
-  const backUrl = `${env.frontendUrl}/checkout/retorno`;
-  const body = {
-    items: params.items.map((i) => ({
-      title: i.title,
-      quantity: i.quantity,
-      unit_price: Number(i.unit_price),
-      currency_id: 'BRL',
-    })),
-    external_reference: String(params.pedidoId),
-    ...(params.payerEmail ? { payer: { email: params.payerEmail } } : {}),
-    // back_urls levam de volta ao app; sem auto_return para evitar a recusa
-    // que o MP às vezes faz com URLs de localhost. O usuário volta clicando
-    // em "Voltar ao site" no checkout, e /checkout/retorno confirma o pedido.
-    back_urls: { success: backUrl, failure: backUrl, pending: backUrl },
-  };
-
-  const res = await fetch(`${MP_API}/checkout/preferences`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(`Mercado Pago: falha ao criar preferência (${res.status}): ${await res.text()}`);
-  }
-  const data = (await res.json()) as Preference;
-  return { id: data.id, init_point: data.init_point, sandbox_init_point: data.sandbox_init_point };
-}
-
 export interface PixCharge {
   paymentId: number;
   status: string;
-  qrCode: string;        // "copia e cola" (EMV)
-  qrCodeBase64: string;  // imagem PNG em base64
+  qrCode: string;
+  qrCodeBase64: string;
   ticketUrl?: string;
 }
 
-/**
- * Cria uma cobrança PIX REAL via API do Mercado Pago (Checkout Transparente).
- * Devolve o QR Code (imagem + copia e cola) que o cliente paga pelo app do banco.
- * O pedido só é confirmado quando o pagamento cair (consultado por external_reference).
- */
 export async function createPixPayment(params: {
   pedidoId: number;
   amount: number;
@@ -99,7 +44,7 @@ export async function createPixPayment(params: {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Idempotência: evita cobrança duplicada se a requisição for reenviada.
+      // Evita cobrança duplicada se a requisição for reenviada.
       'X-Idempotency-Key': `pix-${params.pedidoId}-${Date.now()}`,
       ...authHeaders(),
     },
@@ -124,16 +69,22 @@ export async function createPixPayment(params: {
 
 export type PaymentOutcome = 'approved' | 'rejected' | 'pending';
 
-/** Consulta os pagamentos do pedido (external_reference) e resume o resultado. */
+// Considera apenas o pagamento mais recente da referência: o external_reference
+// é o id do pedido, que se repete entre recriações do banco (re-seed) e
+// colidiria com cobranças antigas já aprovadas no Mercado Pago.
 export async function getPaymentOutcome(pedidoId: number): Promise<PaymentOutcome> {
   const url = `${MP_API}/v1/payments/search?external_reference=${pedidoId}&sort=date_created&criteria=desc`;
   const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) {
     throw new Error(`Mercado Pago: falha ao consultar pagamento (${res.status})`);
   }
-  const data = (await res.json()) as { results?: { status: string }[] };
-  const results = data.results ?? [];
-  if (results.some((p) => p.status === 'approved')) return 'approved';
-  if (results.some((p) => p.status === 'rejected' || p.status === 'cancelled')) return 'rejected';
+  const data = (await res.json()) as { results?: { status: string; date_created: string }[] };
+  const results = [...(data.results ?? [])].sort(
+    (a, b) => new Date(b.date_created).getTime() - new Date(a.date_created).getTime(),
+  );
+  const atual = results[0];
+  if (!atual) return 'pending';
+  if (atual.status === 'approved') return 'approved';
+  if (atual.status === 'rejected' || atual.status === 'cancelled') return 'rejected';
   return 'pending';
 }

@@ -7,13 +7,12 @@ import { HttpError } from '../middleware/error.js';
 import * as uploadService from '../services/upload.service.js';
 import type { RowDataPacket } from 'mysql2';
 
-/** Colunas públicas do usuário (sem senha_hash), reusadas por auth.me e perfil. */
+// Colunas públicas do usuário: nunca inclui senha_hash.
 export const USER_PUBLIC_COLUMNS =
   `id, nome, email, tipo, reputacao, total_avaliacoes, avatar_url, telefone, bio,
    endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento,
    endereco_bairro, endereco_cidade, endereco_estado`;
 
-/** Converte uma linha de `usuarios` no shape público devolvido à aplicação. */
 export function mapUser(u: RowDataPacket) {
   return {
     id: u.id,
@@ -44,7 +43,7 @@ async function fetchUser(userId: number) {
   return mapUser(rows[0]);
 }
 
-// Campo de texto opcional que aceita string vazia (limpa o valor → null).
+// Texto opcional: string vazia limpa o campo (vira null).
 const optionalText = (max: number) =>
   z.string().trim().max(max).optional().transform((v) => (v ? v : null));
 
@@ -114,7 +113,6 @@ export async function changePassword(req: Request, res: Response, next: NextFunc
   }
 }
 
-/** Middleware do multer: imagem em memória, até 3MB, só tipos de imagem. */
 export const avatarUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 3 * 1024 * 1024 },

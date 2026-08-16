@@ -14,11 +14,8 @@ interface MysqlError {
   sqlMessage?: string;
 }
 
-/**
- * Traduz erros vindos das regras de negócio do banco (triggers/constraints)
- * para respostas HTTP amigáveis. As regras são a fonte da verdade — o backend
- * apenas reporta o que o banco recusou.
- */
+// As regras de negócio vivem no banco: aqui só traduzimos o que ele recusou
+// para uma resposta HTTP.
 function mapMysqlError(err: MysqlError): { status: number; message: string } | null {
   switch (err.errno) {
     // SIGNAL SQLSTATE '45000' disparado pelas triggers (RN003, RN004, RN005...)
@@ -52,7 +49,6 @@ export function errorHandler(
     res.status(err.status).json({ error: err.message });
     return;
   }
-  // Erros do multer (ex.: arquivo acima do limite de tamanho).
   if (err && typeof err === 'object' && (err as { name?: string }).name === 'MulterError') {
     const code = (err as { code?: string }).code;
     const message = code === 'LIMIT_FILE_SIZE'

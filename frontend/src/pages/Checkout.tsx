@@ -11,8 +11,7 @@ import {
   CardForm, PixPanel, BoletoPanel, RealPixCharge, emptyCard, validateCard,
   formatCpf, cpfValid, gerarPixCode, gerarBoletoLinha, type CardData,
 } from '../components/PaymentForms';
-
-const money = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`;
+import { money } from '../utils/format';
 
 interface PixCharge {
   pedido_id: number;
@@ -51,17 +50,15 @@ export function Checkout() {
   const [metodo, setMetodo] = useState<Metodo>('pix');
   const [loading, setLoading] = useState(false);
 
-  // PIX real (Mercado Pago) disponível quando o backend tem credenciais.
   const [pixReal, setPixReal] = useState(false);
   const [cpf, setCpf] = useState('');
   const [pixCharge, setPixCharge] = useState<PixCharge | null>(null);
   const [verificando, setVerificando] = useState(false);
   const pollRef = useRef<number | null>(null);
 
-  // Dados do cartão (checkout transparente — só no front, nunca persistidos).
+  // Os dados do cartão ficam só no front: nunca são enviados nem persistidos.
   const [card, setCard] = useState<CardData>(emptyCard);
 
-  // Cupom de desconto.
   const [cupomInput, setCupomInput] = useState('');
   const [cupom, setCupom] = useState<CouponValidation | null>(null);
   const [cupomLoading, setCupomLoading] = useState(false);
@@ -69,7 +66,6 @@ export function Checkout() {
   const desconto = cupom?.desconto ?? 0;
   const totalFinal = Math.max(cart.total - desconto, 0);
 
-  // Códigos de Pix/boleto gerados uma vez por sessão de checkout.
   const pixCode = useMemo(() => gerarPixCode(totalFinal), [totalFinal]);
   const boletoLinha = useMemo(() => gerarBoletoLinha(), []);
   const boletoVencimento = useMemo(() => {
@@ -113,14 +109,13 @@ export function Checkout() {
     }));
   }
 
-  // Descobre se o PIX real (Mercado Pago) está disponível no backend.
   useEffect(() => {
     http.get<{ mercadopago: boolean }>('/payments/mode')
       .then((r) => setPixReal(r.mercadopago))
       .catch(() => setPixReal(false));
   }, []);
 
-  // Enquanto há uma cobrança PIX aberta, consulta a confirmação periodicamente.
+  // Com uma cobrança Pix aberta, consulta a confirmação periodicamente.
   useEffect(() => {
     if (!pixCharge) return;
     setVerificando(true);
@@ -140,7 +135,6 @@ export function Checkout() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); setVerificando(false); };
   }, [pixCharge, refresh, toast, nav]);
 
-  // Verificação manual ("Já paguei").
   async function verificarAgora() {
     if (!pixCharge) return;
     setLoading(true);
@@ -165,7 +159,7 @@ export function Checkout() {
     if (!codigo) return;
     setCupomLoading(true);
     try {
-      const res = await http.post<CouponValidation>('/coupons/validate', { codigo, subtotal: cart.total });
+      const res = await http.post<CouponValidation>('/coupons/validate', { codigo });
       setCupom(res);
       toast(`Cupom ${res.codigo} aplicado: -${money(res.desconto)}`, 'success');
     } catch (err) {
@@ -190,13 +184,12 @@ export function Checkout() {
       return;
     }
 
-    // Validação dos dados do cartão antes de "processar".
     if (metodo === 'cartao') {
       const erro = validateCard(card);
       if (erro) { toast(erro, 'error'); return; }
     }
 
-    // PIX real (Mercado Pago): gera a cobrança e entra em modo de espera.
+    // Pix real: gera a cobrança e entra em modo de espera pela confirmação.
     if (metodo === 'pix' && pixReal) {
       if (!cpfValid(cpf)) { toast('Informe um CPF válido para gerar o Pix.', 'error'); return; }
       setLoading(true);
@@ -217,7 +210,6 @@ export function Checkout() {
       return;
     }
 
-    // Cartão/boleto (e PIX sem credenciais) → processa no banco (aprova na hora).
     setLoading(true);
     try {
       const res = await http.post<CheckoutResponse>('/orders/checkout', {
@@ -266,7 +258,7 @@ export function Checkout() {
         {cart.items.map((i) => (
           <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px dashed var(--border-subtle)' }}>
             <span>{i.quantidade}× {i.produto_nome}</span>
-            <span>R$ {i.subtotal.toFixed(2).replace('.', ',')}</span>
+            <span>{money(i.subtotal)}</span>
           </div>
         ))}
         <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '1rem', marginTop: '0.5rem' }}>
@@ -369,9 +361,6 @@ export function Checkout() {
             >
               <Icon size={22} />
               {label}
-              {v === 'pix' && pixReal && (
-                <span className="badge badge-success" style={{ fontSize: '0.6rem' }}>real</span>
-              )}
             </button>
           ))}
         </div>
@@ -399,7 +388,7 @@ export function Checkout() {
                     placeholder="000.000.000-00" maxLength={14}
                   />
                   <p className="muted" style={{ fontSize: '0.78rem', marginTop: '0.6rem' }}>
-                    Ao gerar, criamos uma cobrança Pix <strong>real</strong> no Mercado Pago. Você paga
+                    Ao gerar, criamos uma cobrança Pix no Mercado Pago. Você paga
                     pelo app do banco e a confirmação é automática.
                   </p>
                 </div>
@@ -420,17 +409,15 @@ export function Checkout() {
         {labelBotao}
       </button>
 
-      <div className="muted" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-        marginTop: '1rem', fontSize: '0.75rem',
-      }}>
-        <IconInfo size={14} />
-        <span>
-          {metodo === 'pix' && pixReal
-            ? 'Pagamento Pix processado com segurança pelo Mercado Pago.'
-            : 'Pagamento de demonstração para cartão e boleto, sem cobrança real.'}
-        </span>
-      </div>
+      {metodo === 'pix' && pixReal && (
+        <div className="muted" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+          marginTop: '1rem', fontSize: '0.75rem',
+        }}>
+          <IconInfo size={14} />
+          <span>Pagamento Pix processado com segurança pelo Mercado Pago.</span>
+        </div>
+      )}
     </div>
   );
 }

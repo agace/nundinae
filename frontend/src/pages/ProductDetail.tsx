@@ -8,6 +8,7 @@ import { FavoriteButton } from '../components/FavoriteButton';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useToast } from '../contexts/ToastContext';
+import { money } from '../utils/format';
 
 export function ProductDetail() {
   const { id } = useParams();
@@ -113,7 +114,7 @@ export function ProductDetail() {
             fontWeight: 600,
             marginBottom: '1.5rem',
           }}>
-            R$ {product.preco.toFixed(2).replace('.', ',')}
+            {money(product.preco)}
           </p>
 
           <p style={{ color: 'var(--cream-200)', lineHeight: 1.75, marginBottom: '2rem' }}>

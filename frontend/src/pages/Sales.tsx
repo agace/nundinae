@@ -5,6 +5,7 @@ import type { SaleItem, OrderStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { IconTruck } from '../components/Icons';
+import { dataHora, money } from '../utils/format';
 
 const STATUS_LABEL: Record<string, string> = {
   pendente: 'Pendente', pago: 'Pago', preparando: 'Preparando',
@@ -76,7 +77,7 @@ export function Sales() {
           gap: '1rem',
           marginBottom: '2rem',
         }}>
-          <SummaryCard label="Faturamento (pago)" value={`R$ ${faturamento.toFixed(2).replace('.', ',')}`} />
+          <SummaryCard label="Faturamento (pago)" value={`${money(faturamento)}`} />
           <SummaryCard label="Unidades vendidas" value={String(unidades)} />
           <SummaryCard label="Total de registros" value={String(sales.length)} />
         </div>
@@ -102,13 +103,13 @@ export function Sales() {
                   Comprador: {s.comprador_nome} · Pedido #{s.pedido_id}
                 </p>
                 <p className="muted" style={{ fontSize: '0.75rem' }}>
-                  {new Date(s.created_at).toLocaleString('pt-BR')}
+                  {dataHora(s.created_at)}
                 </p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
                 {statusBadge(s.status)}
                 <strong className="gold" style={{ fontSize: '1.1rem' }}>
-                  R$ {s.subtotal.toFixed(2).replace('.', ',')}
+                  {money(s.subtotal)}
                 </strong>
                 {PROXIMO[s.status] && (
                   <button

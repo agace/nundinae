@@ -3,6 +3,7 @@ import { useCart } from '../contexts/CartContext';
 import { useToast } from '../contexts/ToastContext';
 import { ApiError } from '../services/api';
 import { IconMinus, IconPlus } from '../components/Icons';
+import { money } from '../utils/format';
 
 export function Cart() {
   const { cart, update, remove, clear, loading } = useCart();
@@ -50,7 +51,7 @@ export function Cart() {
                     por {item.vendedor_nome}
                   </p>
                   <p className="gold" style={{ fontWeight: 600, fontSize: '1.1rem', marginTop: '0.35rem' }}>
-                    R$ {item.preco_unitario.toFixed(2).replace('.', ',')}
+                    {money(item.preco_unitario)}
                   </p>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
@@ -76,7 +77,7 @@ export function Cart() {
               <h2 style={{ fontSize: '1.3rem', marginBottom: '1.25rem' }}>Resumo</h2>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                 <span className="muted">Subtotal</span>
-                <span>R$ {cart.total.toFixed(2).replace('.', ',')}</span>
+                <span>{money(cart.total)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                 <span className="muted">Frete</span>
@@ -84,7 +85,7 @@ export function Cart() {
               </div>
               <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between' }}>
                 <strong>Total</strong>
-                <strong className="gold" style={{ fontSize: '1.4rem' }}>R$ {cart.total.toFixed(2).replace('.', ',')}</strong>
+                <strong className="gold" style={{ fontSize: '1.4rem' }}>{money(cart.total)}</strong>
               </div>
               <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => nav('/checkout')}>
                 Finalizar Compra

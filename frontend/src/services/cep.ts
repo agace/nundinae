@@ -1,4 +1,4 @@
-/** Consulta de endereço por CEP via ViaCEP (gratuita, sem chave, com CORS). */
+// Consulta de CEP pelo ViaCEP: gratuito, sem chave e com CORS liberado.
 
 export interface CepAddress {
   logradouro: string;
@@ -17,15 +17,11 @@ interface ViaCepResponse {
   erro?: boolean;
 }
 
-/** Mantém apenas dígitos do CEP. */
 export function cepDigits(cep: string): string {
   return cep.replace(/\D/g, '');
 }
 
-/**
- * Busca o endereço de um CEP (8 dígitos). Retorna null se o CEP for inválido,
- * inexistente ou se a consulta falhar (ex.: offline) — nunca lança.
- */
+// Devolve null (nunca lança) para CEP inválido, inexistente ou consulta falha.
 export async function fetchAddressByCep(cep: string): Promise<CepAddress | null> {
   const digits = cepDigits(cep);
   if (digits.length !== 8) return null;

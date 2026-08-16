@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { http } from '../services/api';
 import type { Tracking, OrderStatus } from '../types';
 import { IconTruck } from './Icons';
+import { dataHora } from '../utils/format';
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
   pendente: 'Aguardando pagamento',
@@ -12,7 +13,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   cancelado: 'Cancelado',
 };
 
-/** Linha do tempo de um pedido (eventos gerados por trigger no banco). */
+// Os eventos da timeline são gerados por trigger no banco.
 export function OrderTracking({ pedidoId }: { pedidoId: number }) {
   const [tracking, setTracking] = useState<Tracking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,7 +58,7 @@ export function OrderTracking({ pedidoId }: { pedidoId: number }) {
                 {e.descricao}
               </p>
               <p className="muted" style={{ fontSize: '0.72rem' }}>
-                {new Date(e.created_at).toLocaleString('pt-BR')}
+                {dataHora(e.created_at)}
               </p>
             </div>
           );

@@ -1,13 +1,10 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env.js';
 
-/**
- * Armazenamento de imagens (avatar de perfil) via Cloudinary — tecnologia
- * oficial da documentação. Se as 3 chaves não estiverem configuradas,
- * `isConfigured()` retorna false e o upload cai num data-URI base64 guardado
- * no próprio banco — assim a aplicação roda sem credenciais (mesmo padrão
- * graceful do Mercado Pago/SMTP).
- */
+// Sem as três chaves do Cloudinary o upload cai num data-URI base64 guardado
+// no próprio banco, para a aplicação rodar sem credenciais. É um fallback de
+// demonstração: em produção o Cloudinary deve estar configurado, senão as
+// imagens inflam as linhas e as respostas da API.
 
 export function isConfigured(): boolean {
   return Boolean(env.cloudinary.cloudName && env.cloudinary.apiKey && env.cloudinary.apiSecret);
@@ -22,10 +19,6 @@ if (isConfigured()) {
   });
 }
 
-/**
- * Envia o avatar do usuário. Com Cloudinary configurado, faz o upload e devolve
- * a URL segura (CDN); senão, devolve um data-URI base64 (fallback).
- */
 export async function uploadAvatar(
   buffer: Buffer,
   userId: number,
@@ -53,10 +46,6 @@ export async function uploadAvatar(
   });
 }
 
-/**
- * Envia a imagem de um produto. Com Cloudinary configurado devolve a URL do
- * CDN, senão um data-URI base64 (fallback), mesmo padrão do avatar.
- */
 export async function uploadProductImage(
   buffer: Buffer,
   mimetype: string,
@@ -81,12 +70,11 @@ export async function uploadProductImage(
   });
 }
 
-/** Remove o avatar do Cloudinary (no-op sem credenciais ou no fallback base64). */
 export async function removeAvatar(userId: number): Promise<void> {
   if (!isConfigured()) return;
   try {
     await cloudinary.uploader.destroy(`nundinae/avatars/user_${userId}`);
   } catch {
-    // Não derruba o fluxo: limpar a coluna no banco já é suficiente para a UX.
+    // Limpar a coluna no banco já basta para a UX.
   }
 }
