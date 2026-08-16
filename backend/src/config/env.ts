@@ -30,6 +30,13 @@ function read(name: keyof typeof DEV_DEFAULTS): string {
   return DEV_DEFAULTS[name];
 }
 
+// Integrações opcionais. O trim é o que importa: painéis de deploy costumam não
+// aceitar campo vazio, e um único espaço em branco faria o isConfigured() da
+// integração retornar true, ligando por acidente o pagamento ou o e-mail real.
+function opcional(nome: string): string {
+  return process.env[nome]?.trim() ?? '';
+}
+
 // Aceita o PEM direto ou em base64: nem todo painel de deploy preserva as
 // quebras de linha do certificado.
 function lerCertificado(valor: string | undefined): string | undefined {
@@ -72,16 +79,16 @@ const env = {
   corsOrigins: read('CORS_ORIGIN').split(',').map((o) => o.trim()).filter(Boolean),
   frontendUrl: read('FRONTEND_URL'),
   mercadoPago: {
-    accessToken: process.env.MP_ACCESS_TOKEN ?? '',
+    accessToken: opcional('MP_ACCESS_TOKEN'),
   },
   email: {
-    apiKey: process.env.RESEND_API_KEY ?? '',
-    from: process.env.RESEND_FROM ?? 'Nundinae <onboarding@resend.dev>',
+    apiKey: opcional('RESEND_API_KEY'),
+    from: opcional('RESEND_FROM') || 'Nundinae <onboarding@resend.dev>',
   },
   cloudinary: {
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',
-    apiKey: process.env.CLOUDINARY_API_KEY ?? '',
-    apiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
+    cloudName: opcional('CLOUDINARY_CLOUD_NAME'),
+    apiKey: opcional('CLOUDINARY_API_KEY'),
+    apiSecret: opcional('CLOUDINARY_API_SECRET'),
   },
 };
 
