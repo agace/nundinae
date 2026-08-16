@@ -12,12 +12,20 @@
     "db:down": "docker compose down",
     "db:migrate": "npm -w backend run migrate",
     "db:seed": "npm -w backend run seed",
+    "lint": "eslint backend/src backend/test frontend/src",
+    "lint:fix": "eslint backend/src backend/test frontend/src --fix",
+    "typecheck": "npm -w backend run typecheck && npm -w frontend run typecheck",
     "test": "npm -w backend run test && npm -w frontend run test",
     "test:backend": "npm -w backend run test",
     "test:frontend": "npm -w frontend run test",
     "build": "npm -w backend run build && npm -w frontend run build"
   },
   "devDependencies": {
-    "concurrently": "^9.0.1"
+    "@eslint/js": "^9.39.1",
+    "concurrently": "^9.2.4",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "globals": "^16.5.0",
+    "typescript-eslint": "^8.46.2"
   }
 }

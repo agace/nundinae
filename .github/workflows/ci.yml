@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificacao:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.3
+        env:
+          MYSQL_ROOT_PASSWORD: nundinae_root
+          MYSQL_DATABASE: nundinae
+          MYSQL_USER: nundinae
+          MYSQL_PASSWORD: nundinae_dev
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -pnundinae_root"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3307
+      DB_USER: nundinae
+      DB_PASSWORD: nundinae_dev
+      DB_ROOT_PASSWORD: nundinae_root
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # O log_bin_trust_function_creators é exigido para criar as triggers e
+      # procedures sem privilégio SUPER.
+      - name: Liberar criação de rotinas no MySQL
+        run: |
+          mysql -h 127.0.0.1 -P 3307 -u root -pnundinae_root \
+            -e "SET GLOBAL log_bin_trust_function_creators = 1"
+
+      - name: Testes
+        run: npm test
