@@ -2,6 +2,7 @@ import { pathToFileURL } from 'node:url';
 import bcrypt from 'bcryptjs';
 import mysql from 'mysql2/promise';
 import { env } from '../config/env.js';
+import { connectionOptions } from './pool.js';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 interface SeedUser {
@@ -262,13 +263,7 @@ async function run() {
     process.exit(1);
   }
 
-  const conn = await mysql.createConnection({
-    host: env.db.host,
-    port: env.db.port,
-    user: env.db.user,
-    password: env.db.password,
-    database: env.db.database,
-  });
+  const conn = await mysql.createConnection({ ...connectionOptions });
   try {
     await seedDatabase(conn, { log: true });
     console.log('\n[seed] Concluído.\n');

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import mysql from 'mysql2/promise';
-import { env } from '../config/env.js';
+import { connectionOptions } from './pool.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -94,11 +94,7 @@ export async function applyMigrations(conn: mysql.Connection): Promise<number> {
 
 async function run() {
   const conn = await mysql.createConnection({
-    host: env.db.host,
-    port: env.db.port,
-    user: env.db.user,
-    password: env.db.password,
-    database: env.db.database,
+    ...connectionOptions,
     multipleStatements: true,
   });
   try {
