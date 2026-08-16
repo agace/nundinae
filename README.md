@@ -6,6 +6,8 @@
 
 *Compre, venda e negocie como nos tempos do Império.*
 
+### [Acessar a demonstração ao vivo](https://nundinae-psi.vercel.app)
+
 ![React](https://img.shields.io/badge/React_18-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -150,6 +152,8 @@ CLOUDINARY_CLOUD_NAME=   # Cloudinary, habilita CDN de imagens (senão usa fallb
 
 ## Usuários de demonstração
 
+Valem tanto no ambiente local quanto na [demonstração ao vivo](https://nundinae-psi.vercel.app).
+
 | E-mail | Senha | Perfil |
 |--------|-------|--------|
 | `marcus@nundinae.com` | `roma123` | Vendedor |
@@ -241,6 +245,18 @@ DELETE /api/admin/users/:id
 </details>
 
 ## Deploy
+
+### Ambiente publicado
+
+| Componente | Endereço |
+|------------|----------|
+| Frontend | https://nundinae-psi.vercel.app |
+| API | https://nundinae-api.onrender.com/api/health |
+| Banco | MySQL 8 gerenciado (Aiven), com as triggers e procedures aplicadas |
+
+A API roda no plano gratuito do Render, que hiberna após 15 minutos sem tráfego. Um
+monitor externo mantém a instância acordada, mas se a primeira requisição demorar é
+esse o motivo.
 
 Em produção a API e o frontend ficam em serviços separados, e o banco num MySQL
 gerenciado. A stack usada é Render (API em Docker), Vercel (frontend) e Aiven
