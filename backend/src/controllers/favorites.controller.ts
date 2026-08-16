@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { pool } from '../db/pool.js';
+import { parseId } from '../utils/params.js';
 import type { RowDataPacket } from 'mysql2';
 
-/** Lista de desejos do usuário logado (produtos ativos favoritados). */
 export async function list(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
@@ -36,7 +36,6 @@ export async function list(req: Request, res: Response, next: NextFunction): Pro
   }
 }
 
-/** Apenas os IDs favoritados — usado pelo frontend para marcar os corações. */
 export async function listIds(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
@@ -50,11 +49,11 @@ export async function listIds(req: Request, res: Response, next: NextFunction): 
   }
 }
 
-/** Favorita um produto (idempotente — ignora se já estava na lista). */
+// INSERT IGNORE deixa a operação idempotente.
 export async function add(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
-    const produtoId = Number(req.params.produtoId);
+    const produtoId = parseId(req.params.produtoId, 'Produto');
     await pool.query(
       'INSERT IGNORE INTO favoritos (usuario_id, produto_id) VALUES (?, ?)',
       [userId, produtoId],
@@ -65,11 +64,10 @@ export async function add(req: Request, res: Response, next: NextFunction): Prom
   }
 }
 
-/** Remove um produto da lista de desejos. */
 export async function remove(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
-    const produtoId = Number(req.params.produtoId);
+    const produtoId = parseId(req.params.produtoId, 'Produto');
     await pool.query('DELETE FROM favoritos WHERE usuario_id = ? AND produto_id = ?', [userId, produtoId]);
     res.json({ ok: true, produto_id: produtoId, favorito: false });
   } catch (err) {

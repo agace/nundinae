@@ -3,16 +3,17 @@ import multer from 'multer';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { HttpError } from '../middleware/error.js';
+import { parseId } from '../utils/params.js';
 import * as uploadService from '../services/upload.service.js';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const productSchema = z.object({
-  nome: z.string().min(2).max(200),
+  nome: z.string().trim().min(2).max(200),
   descricao: z.string().max(2000).optional(),
-  preco: z.number().positive(),
+  preco: z.number().positive().max(1_000_000),
   imagem: z.string().optional().nullable(),
-  estoque: z.number().int().min(0),
-  categoria: z.string().min(1).max(100),
+  estoque: z.number().int().min(0).max(1_000_000),
+  categoria: z.string().trim().min(1).max(100),
   ativo: z.boolean().optional(),
 });
 
@@ -83,21 +84,26 @@ export async function list(req: Request, res: Response, next: NextFunction): Pro
     const params: (string | number)[] = [];
 
     if (typeof q === 'string' && q.trim()) {
+      // Escapa os curingas do LIKE para que "%" digitado na busca seja literal.
+      const termo = `%${q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
       filters.push('(p.nome LIKE ? OR p.descricao LIKE ?)');
-      params.push(`%${q}%`, `%${q}%`);
+      params.push(termo, termo);
     }
     if (typeof categoria === 'string' && categoria.trim()) {
       filters.push('p.categoria = ?');
       params.push(categoria);
     }
     if (typeof vendedor_id === 'string' && vendedor_id.trim()) {
+      const vendedor = Number(vendedor_id);
+      if (!Number.isInteger(vendedor) || vendedor <= 0) {
+        throw new HttpError(400, 'vendedor_id inválido');
+      }
       filters.push('p.vendedor_id = ?');
-      params.push(Number(vendedor_id));
+      params.push(vendedor);
     }
 
-    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const [rows] = await pool.query<ProductRow[]>(
-      `${BASE_SELECT} ${where} ORDER BY p.created_at DESC LIMIT 100`,
+      `${BASE_SELECT} WHERE ${filters.join(' AND ')} ORDER BY p.created_at DESC LIMIT 100`,
       params,
     );
     res.json(rows.map(formatProduct));
@@ -108,9 +114,11 @@ export async function list(req: Request, res: Response, next: NextFunction): Pro
 
 export async function getById(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = Number(req.params.id);
+    const id = parseId(req.params.id, 'Produto');
+    // Rota pública: produto removido (soft delete) não deve continuar acessível
+    // por link direto.
     const [rows] = await pool.query<ProductRow[]>(
-      `${BASE_SELECT} WHERE p.id = ?`,
+      `${BASE_SELECT} WHERE p.id = ? AND p.ativo = 1`,
       [id],
     );
     if (rows.length === 0) throw new HttpError(404, 'Produto não encontrado');
@@ -147,7 +155,7 @@ export async function create(req: Request, res: Response, next: NextFunction): P
 
 export async function update(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = Number(req.params.id);
+    const id = parseId(req.params.id, 'Produto');
     const data = productSchema.partial().parse(req.body);
     const userId = req.user!.sub;
 
@@ -160,11 +168,13 @@ export async function update(req: Request, res: Response, next: NextFunction): P
       throw new HttpError(403, 'Você não pode editar este produto');
     }
 
+    // As chaves vêm do schema do zod (que descarta campos desconhecidos), então
+    // nunca chega nome de coluna arbitrário na montagem do SET.
     const fields: string[] = [];
     const values: (string | number | null)[] = [];
     for (const [k, v] of Object.entries(data)) {
       fields.push(`${k} = ?`);
-      values.push(v as string | number | null);
+      values.push(typeof v === 'boolean' ? Number(v) : (v as string | number | null));
     }
     if (fields.length === 0) {
       res.json({ ok: true });
@@ -182,7 +192,7 @@ export async function update(req: Request, res: Response, next: NextFunction): P
 
 export async function remove(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = Number(req.params.id);
+    const id = parseId(req.params.id, 'Produto');
     const userId = req.user!.sub;
 
     const [ownerRows] = await pool.query<RowDataPacket[]>(

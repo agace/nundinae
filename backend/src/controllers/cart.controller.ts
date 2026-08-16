@@ -2,7 +2,8 @@ import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { HttpError } from '../middleware/error.js';
-import type { RowDataPacket } from 'mysql2';
+import { parseId } from '../utils/params.js';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 interface CartRow extends RowDataPacket { id: number }
 interface ItemRow extends RowDataPacket {
@@ -23,10 +24,10 @@ async function getOrCreateCart(usuarioId: number): Promise<number> {
     [usuarioId],
   );
   if (rows.length > 0) return rows[0].id;
-  const [result] = await pool.query<RowDataPacket[] & { insertId: number }>(
+  const [result] = await pool.query<ResultSetHeader>(
     'INSERT INTO carrinhos (usuario_id) VALUES (?)',
     [usuarioId],
-  ) as unknown as [{ insertId: number }, unknown];
+  );
   return result.insertId;
 }
 
@@ -68,7 +69,7 @@ export async function get(req: Request, res: Response, next: NextFunction): Prom
 
 const addSchema = z.object({
   produto_id: z.number().int().positive(),
-  quantidade: z.number().int().positive().default(1),
+  quantidade: z.number().int().positive().max(1000).default(1),
 });
 
 export async function add(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -113,12 +114,12 @@ export async function add(req: Request, res: Response, next: NextFunction): Prom
 }
 
 const updateSchema = z.object({
-  quantidade: z.number().int().positive(),
+  quantidade: z.number().int().positive().max(1000),
 });
 
 export async function updateItem(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const itemId = Number(req.params.itemId);
+    const itemId = parseId(req.params.itemId, 'Item');
     const data = updateSchema.parse(req.body);
     const userId = req.user!.sub;
     const carrinhoId = await getOrCreateCart(userId);
@@ -145,7 +146,7 @@ export async function updateItem(req: Request, res: Response, next: NextFunction
 
 export async function removeItem(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const itemId = Number(req.params.itemId);
+    const itemId = parseId(req.params.itemId, 'Item');
     const userId = req.user!.sub;
     const carrinhoId = await getOrCreateCart(userId);
 

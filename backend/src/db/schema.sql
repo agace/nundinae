@@ -66,7 +66,10 @@ CREATE TABLE IF NOT EXISTS pedidos (
   id INT AUTO_INCREMENT PRIMARY KEY,
   usuario_id INT NOT NULL,
   total DECIMAL(10,2) NOT NULL,
-  status ENUM('pendente', 'pago', 'cancelado', 'entregue') NOT NULL DEFAULT 'pendente',
+  status ENUM('pendente', 'pago', 'preparando', 'enviado', 'entregue', 'cancelado') NOT NULL DEFAULT 'pendente',
+  -- Cupom aplicado no checkout (snapshot do código + valor abatido)
+  cupom_codigo VARCHAR(40),
+  desconto DECIMAL(10,2) NOT NULL DEFAULT 0,
   -- Snapshot do endereço de entrega usado no checkout
   entrega_cep VARCHAR(9),
   entrega_logradouro VARCHAR(150),
@@ -161,7 +164,7 @@ CREATE TABLE IF NOT EXISTS perguntas (
   INDEX idx_perg_produto (produto_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Cupons de desconto (criados pelo admin, aplicados no checkout).
+-- Cupons de desconto: cada vendedor cria e gerencia os seus.
 CREATE TABLE IF NOT EXISTS cupons (
   id INT AUTO_INCREMENT PRIMARY KEY,
   codigo VARCHAR(40) NOT NULL UNIQUE,
@@ -171,8 +174,10 @@ CREATE TABLE IF NOT EXISTS cupons (
   validade DATE,
   usos_max INT,
   usos INT NOT NULL DEFAULT 0,
+  vendedor_id INT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT chk_cupom_valor CHECK (valor > 0),
+  CONSTRAINT fk_cupom_vendedor FOREIGN KEY (vendedor_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   INDEX idx_cupom_codigo (codigo)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

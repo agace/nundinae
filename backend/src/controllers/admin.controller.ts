@@ -2,9 +2,10 @@ import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { HttpError } from '../middleware/error.js';
+import { parseId } from '../utils/params.js';
 import type { RowDataPacket } from 'mysql2';
 
-/** RF09 — Gerenciamento de usuários pelo administrador. */
+// RF09 — Gerenciamento de usuários e produtos pelo administrador.
 
 export async function listUsers(_req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -58,7 +59,6 @@ export async function stats(_req: Request, res: Response, next: NextFunction): P
   }
 }
 
-/** RF09 — Listagem de TODOS os produtos (inclusive inativos) para o admin. */
 export async function listProducts(_req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
@@ -91,7 +91,7 @@ const statusSchema = z.object({ ativo: z.boolean() });
 
 export async function setStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = Number(req.params.id);
+    const id = parseId(req.params.id, 'Usuário');
     const { ativo } = statusSchema.parse(req.body);
 
     if (id === req.user!.sub) {
@@ -113,11 +113,16 @@ const tipoSchema = z.object({ tipo: z.enum(['comprador', 'vendedor', 'ambos', 'a
 
 export async function setTipo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = Number(req.params.id);
+    const id = parseId(req.params.id, 'Usuário');
     const { tipo } = tipoSchema.parse(req.body);
 
-    const [rows] = await pool.query<RowDataPacket[]>('SELECT id FROM usuarios WHERE id = ?', [id]);
+    if (id === req.user!.sub) {
+      throw new HttpError(400, 'Você não pode alterar o próprio papel');
+    }
+
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT tipo FROM usuarios WHERE id = ?', [id]);
     if (rows.length === 0) throw new HttpError(404, 'Usuário não encontrado');
+    if (rows[0].tipo === 'admin') throw new HttpError(400, 'Não é possível rebaixar um administrador');
 
     await pool.query('UPDATE usuarios SET tipo = ? WHERE id = ?', [tipo, id]);
     res.json({ ok: true, id, tipo });
@@ -128,7 +133,7 @@ export async function setTipo(req: Request, res: Response, next: NextFunction): 
 
 export async function removeUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const id = Number(req.params.id);
+    const id = parseId(req.params.id, 'Usuário');
 
     if (id === req.user!.sub) {
       throw new HttpError(400, 'Você não pode excluir a própria conta');

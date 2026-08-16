@@ -6,7 +6,6 @@ import { env } from '../config/env.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** Remove linhas de comentário/branco e diz se sobrou SQL executável. */
 function hasSql(chunk: string): boolean {
   return chunk.split('\n').some((line) => {
     const t = line.trim();
@@ -31,15 +30,14 @@ async function ensureColumn(
   }
 }
 
-/** Aplica schema (tabelas) + procedures/triggers (regras de negócio). */
 export async function applyMigrations(conn: mysql.Connection): Promise<number> {
   const schema = await readFile(resolve(__dirname, 'schema.sql'), 'utf-8');
   const procedures = await readFile(resolve(__dirname, 'procedures.sql'), 'utf-8');
 
   await conn.query(schema);
 
-  // CREATE TABLE IF NOT EXISTS não altera tabelas já existentes; garante as
-  // colunas novas em bancos criados antes desta versão.
+  // CREATE TABLE IF NOT EXISTS não altera tabelas existentes: os ensureColumn
+  // abaixo atualizam bancos criados antes destas colunas.
   await ensureColumn(conn, 'usuarios', 'ativo', 'TINYINT(1) NOT NULL DEFAULT 1');
 
   // Perfil do usuário + endereço reutilizável.
@@ -69,6 +67,9 @@ export async function applyMigrations(conn: mysql.Connection): Promise<number> {
   // Cupom de desconto aplicado ao pedido (snapshot do código + valor abatido).
   await ensureColumn(conn, 'pedidos', 'cupom_codigo', 'VARCHAR(40)');
   await ensureColumn(conn, 'pedidos', 'desconto', 'DECIMAL(10,2) NOT NULL DEFAULT 0');
+
+  // Dono do cupom: cada vendedor gerencia os seus. NULL = cupom global (legado).
+  await ensureColumn(conn, 'cupons', 'vendedor_id', 'INT NULL');
 
   // Rastreamento: amplia os status do pedido (preparando/enviado) para a
   // timeline estilo Mercado Livre. Idempotente — re-aplicar mantém o mesmo enum.

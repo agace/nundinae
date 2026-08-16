@@ -294,10 +294,14 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Carrinho vazio';
   END IF;
 
+  -- FOR UPDATE trava as linhas de produtos ate o COMMIT: sem isso dois
+  -- checkouts simultaneos leriam o mesmo estoque e ambos passariam na
+  -- verificacao, deixando o estoque negativo.
   SELECT COUNT(*) INTO v_falta
     FROM itens_carrinho ic
     JOIN produtos p ON p.id = ic.produto_id
-   WHERE ic.carrinho_id = v_carrinho AND ic.quantidade > p.estoque;
+   WHERE ic.carrinho_id = v_carrinho AND ic.quantidade > p.estoque
+   FOR UPDATE;
   IF v_falta > 0 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Estoque insuficiente para um ou mais itens';
   END IF;
@@ -378,10 +382,14 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Carrinho vazio';
   END IF;
 
+  -- FOR UPDATE trava as linhas de produtos ate o COMMIT: sem isso dois
+  -- checkouts simultaneos leriam o mesmo estoque e ambos passariam na
+  -- verificacao, deixando o estoque negativo.
   SELECT COUNT(*) INTO v_falta
     FROM itens_carrinho ic
     JOIN produtos p ON p.id = ic.produto_id
-   WHERE ic.carrinho_id = v_carrinho AND ic.quantidade > p.estoque;
+   WHERE ic.carrinho_id = v_carrinho AND ic.quantidade > p.estoque
+   FOR UPDATE;
   IF v_falta > 0 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Estoque insuficiente para um ou mais itens';
   END IF;

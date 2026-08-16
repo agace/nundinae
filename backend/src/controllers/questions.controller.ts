@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { HttpError } from '../middleware/error.js';
+import { parseId } from '../utils/params.js';
 import { notify } from '../services/notifications.service.js';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
@@ -21,10 +22,9 @@ function formatQuestion(r: RowDataPacket) {
   };
 }
 
-/** Perguntas e respostas de um produto (público). */
 export async function listByProduct(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const produtoId = Number(req.params.id);
+    const produtoId = parseId(req.params.id, 'Produto');
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT q.*, u.nome AS autor_nome
          FROM perguntas q JOIN usuarios u ON u.id = q.autor_id
@@ -38,11 +38,10 @@ export async function listByProduct(req: Request, res: Response, next: NextFunct
   }
 }
 
-/** Comprador pergunta num anúncio. Notifica o vendedor. */
 export async function ask(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
-    const produtoId = Number(req.params.id);
+    const produtoId = parseId(req.params.id, 'Produto');
     const { pergunta } = perguntaSchema.parse(req.body);
 
     const [prod] = await pool.query<RowDataPacket[]>(
@@ -76,11 +75,10 @@ export async function ask(req: Request, res: Response, next: NextFunction): Prom
   }
 }
 
-/** Vendedor (dono do produto) responde uma pergunta. Notifica o autor. */
 export async function answer(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
-    const perguntaId = Number(req.params.id);
+    const perguntaId = parseId(req.params.id, 'Pergunta');
     const { resposta } = respostaSchema.parse(req.body);
 
     const [rows] = await pool.query<RowDataPacket[]>(
@@ -112,7 +110,6 @@ export async function answer(req: Request, res: Response, next: NextFunction): P
   }
 }
 
-/** Perguntas recebidas nos produtos do vendedor logado (pendentes primeiro). */
 export async function listForSeller(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;

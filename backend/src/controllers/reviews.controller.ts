@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
+import { parseId } from '../utils/params.js';
 import type { RowDataPacket } from 'mysql2';
 
 const reviewSchema = z.object({
@@ -15,9 +16,8 @@ export async function create(req: Request, res: Response, next: NextFunction): P
     const data = reviewSchema.parse(req.body);
     const avaliadorId = req.user!.sub;
 
-    // As regras RN005 (só avalia pedido pago, dono do pedido, vendedor
-    // participante) e RN006 (nota 1-5) são garantidas por trigger/constraint no
-    // banco. RF07 (reputação = média) é recalculada por trigger após o INSERT.
+    // RN005 (pedido pago, dono do pedido, vendedor participante), RN006 (nota
+    // 1-5) e RF07 (reputação) são garantidas por trigger/constraint no banco.
     await pool.query(
       `INSERT INTO avaliacoes (pedido_id, avaliador_id, avaliado_id, nota, comentario)
        VALUES (?, ?, ?, ?, ?)`,
@@ -41,7 +41,7 @@ export async function create(req: Request, res: Response, next: NextFunction): P
 
 export async function listBySeller(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const vendedorId = Number(req.params.vendedorId);
+    const vendedorId = parseId(req.params.vendedorId, 'Vendedor');
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT a.id, a.nota, a.comentario, a.created_at,
               u.nome AS avaliador_nome

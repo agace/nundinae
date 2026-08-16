@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { pool } from '../db/pool.js';
+import { parseId } from '../utils/params.js';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
-/** Notificações do usuário logado (mais recentes primeiro) + total não lidas. */
 export async function list(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
@@ -30,11 +30,10 @@ export async function list(req: Request, res: Response, next: NextFunction): Pro
   }
 }
 
-/** Marca uma notificação como lida. */
 export async function markRead(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
-    const id = Number(req.params.id);
+    const id = parseId(req.params.id, 'Notificação');
     await pool.query('UPDATE notificacoes SET lida = 1 WHERE id = ? AND usuario_id = ?', [id, userId]);
     res.json({ ok: true });
   } catch (err) {
@@ -42,7 +41,6 @@ export async function markRead(req: Request, res: Response, next: NextFunction):
   }
 }
 
-/** Marca todas as notificações do usuário como lidas. */
 export async function markAllRead(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;

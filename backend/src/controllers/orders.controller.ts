@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { HttpError } from '../middleware/error.js';
+import { parseId } from '../utils/params.js';
 import * as paymentService from '../services/payment.service.js';
 import * as emailService from '../services/email.service.js';
 import { notify } from '../services/notifications.service.js';
@@ -29,29 +30,13 @@ const checkoutSchema = z.object({
   cpf: z.string().max(14).optional().nullable(),
 });
 
-/** Subtotal do carrinho do usuário (antes do desconto), para validar o cupom. */
-async function cartSubtotal(userId: number): Promise<number> {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT COALESCE(SUM(ic.preco_unitario * ic.quantidade), 0) AS subtotal
-       FROM itens_carrinho ic
-       JOIN carrinhos c ON c.id = ic.carrinho_id
-      WHERE c.usuario_id = ?`,
-    [userId],
-  );
-  return Number(rows[0]?.subtotal ?? 0);
-}
-
-/**
- * Resolve o cupom do checkout: revalida no servidor (nunca confia no cliente) e
- * devolve o código normalizado + desconto. Sem cupom → desconto zero.
- */
-async function resolverCupom(cupom: string | null | undefined, subtotal: number): Promise<{ codigo: string | null; desconto: number }> {
-  if (!cupom || !cupom.trim() || subtotal <= 0) return { codigo: null, desconto: 0 };
-  const r = await validateCoupon(cupom, subtotal);
+// Revalida o cupom no servidor: o desconto enviado pelo cliente nunca é aceito.
+async function resolverCupom(cupom: string | null | undefined, userId: number): Promise<{ codigo: string | null; desconto: number }> {
+  if (!cupom || !cupom.trim()) return { codigo: null, desconto: 0 };
+  const r = await validateCoupon(cupom, userId);
   return { codigo: r.codigo, desconto: r.desconto };
 }
 
-/** Notifica cada vendedor que participou do pedido sobre a venda. */
 async function notificarVendedores(pedidoId: number): Promise<void> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT ip.vendedor_id, GROUP_CONCAT(p.nome SEPARATOR ', ') AS produtos
@@ -72,7 +57,6 @@ async function notificarVendedores(pedidoId: number): Promise<void> {
 
 type EnderecoEntrega = z.infer<typeof enderecoSchema>;
 
-/** Grava o snapshot do endereço de entrega no pedido (RF: dados de entrega). */
 async function salvarEnderecoEntrega(pedidoId: number, e: EnderecoEntrega): Promise<void> {
   if (!e) return;
   await pool.query(
@@ -87,7 +71,7 @@ async function salvarEnderecoEntrega(pedidoId: number, e: EnderecoEntrega): Prom
   );
 }
 
-/** Envia o e-mail de confirmação do pedido (não derruba o fluxo em caso de erro). */
+// Uma falha no envio não pode derrubar um pedido já pago.
 async function enviarEmailPedido(pedidoId: number, userId: number): Promise<void> {
   try {
     const [users] = await pool.query<RowDataPacket[]>(
@@ -124,7 +108,6 @@ async function enviarEmailPedido(pedidoId: number, userId: number): Promise<void
   }
 }
 
-/** Informa ao frontend se o pagamento real (Mercado Pago) está ativo. */
 export function paymentMode(_req: Request, res: Response): void {
   res.json({ mercadopago: paymentService.isConfigured() });
 }
@@ -134,14 +117,11 @@ export async function checkout(req: Request, res: Response, next: NextFunction):
     const data = checkoutSchema.parse(req.body);
     const userId = req.user!.sub;
 
-    // Cupom revalidado no servidor sobre o subtotal real do carrinho.
-    const subtotal = await cartSubtotal(userId);
-    const { codigo: cupomCodigo, desconto } = await resolverCupom(data.cupom, subtotal);
+    // Cupom revalidado no servidor sobre o carrinho real (escopo do dono do cupom).
+    const { codigo: cupomCodigo, desconto } = await resolverCupom(data.cupom, userId);
 
-    // --- PIX REAL (Mercado Pago) ---
-    // Cria o pedido como 'pendente', gera uma cobrança PIX de verdade e devolve o
-    // QR Code. A confirmação ocorre quando o pagamento cair (POST /orders/:id/confirm,
-    // que consulta a API do MP por external_reference).
+    // PIX real: o pedido nasce 'pendente' e só é confirmado quando o pagamento
+    // cair, checado em POST /orders/:id/confirm por external_reference.
     if (data.metodo === 'pix' && paymentService.isConfigured()) {
       const [rs] = await pool.query<RowDataPacket[][]>(
         'CALL sp_criar_pedido_pendente(?, ?, ?, ?)',
@@ -185,9 +165,8 @@ export async function checkout(req: Request, res: Response, next: NextFunction):
       return;
     }
 
-    // --- Cartão/boleto (e PIX sem credenciais) → checkout transparente simulado ---
-    // O pedido é processado direto no banco (sp_checkout): valida carrinho/estoque,
-    // cria pedido + pagamento e o trigger RN004 decrementa o estoque ao aprovar.
+    // Cartão/boleto (e PIX sem credenciais): sp_checkout valida carrinho e
+    // estoque, cria pedido + pagamento, e o trigger RN004 baixa o estoque.
     const [resultSets] = await pool.query<RowDataPacket[][]>(
       'CALL sp_checkout(?, ?, ?, ?, ?)',
       [userId, data.metodo, data.simular_falha ? 1 : 0, cupomCodigo, desconto],
@@ -225,14 +204,11 @@ export async function checkout(req: Request, res: Response, next: NextFunction):
   }
 }
 
-/**
- * Confirma um pedido após o retorno do Mercado Pago: consulta o status real do
- * pagamento e atualiza o pedido. Em caso de aprovação, dispara o e-mail.
- */
+// Consulta o status real do pagamento no Mercado Pago e resolve o pedido.
 export async function confirm(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
-    const pedidoId = Number(req.params.id);
+    const pedidoId = parseId(req.params.id, 'Pedido');
 
     const [orders] = await pool.query<RowDataPacket[]>(
       'SELECT id, usuario_id, status FROM pedidos WHERE id = ?',
@@ -268,7 +244,6 @@ export async function confirm(req: Request, res: Response, next: NextFunction): 
   }
 }
 
-/** Vendas do vendedor logado: itens de pedidos em que ele é o vendedor. */
 export async function listSales(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
@@ -359,21 +334,19 @@ export async function listMine(req: Request, res: Response, next: NextFunction):
   }
 }
 
-// --- Rastreamento do pedido (estilo Mercado Livre) ------------------------
-
-// Próximo status permitido a partir do atual (avançado pelo vendedor).
+// Próximo status permitido a partir do atual, avançado pelo vendedor.
 const PROXIMO_STATUS: Record<string, string> = {
   pago: 'preparando',
   preparando: 'enviado',
   enviado: 'entregue',
 };
 
-/** Timeline de eventos de um pedido. Acessível ao comprador, a um vendedor
- *  participante ou ao admin. Os eventos são gerados por trigger no banco. */
+// Timeline do pedido, visível ao comprador, a um vendedor participante ou ao
+// admin. Os eventos são gerados por trigger no banco.
 export async function tracking(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
-    const pedidoId = Number(req.params.id);
+    const pedidoId = parseId(req.params.id, 'Pedido');
 
     const [orders] = await pool.query<RowDataPacket[]>(
       'SELECT id, usuario_id, status FROM pedidos WHERE id = ?',
@@ -408,12 +381,11 @@ const advanceSchema = z.object({
   status: z.enum(['preparando', 'enviado', 'entregue']),
 });
 
-/** Vendedor avança o status do pedido (preparando → enviado → entregue).
- *  A timeline e a notificação ao comprador são geradas por trigger no banco. */
+// A timeline e a notificação ao comprador saem de trigger no banco.
 export async function advanceStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user!.sub;
-    const pedidoId = Number(req.params.id);
+    const pedidoId = parseId(req.params.id, 'Pedido');
     const { status } = advanceSchema.parse(req.body);
 
     const [orders] = await pool.query<RowDataPacket[]>(
